@@ -2,18 +2,7 @@
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "https://NEXT_PUBLIC_API_URL/api/$1"
-    }
-  ],
-  "headers": [
-    {
-      "source": "/api/(.*)",
-      "headers": [
-        {
-          "key": "x-api-key",
-          "value": "@api-key"
-        }
-      ]
+      "destination": "http://211.188.56.255:17788/api/$1"
     }
   ],
   "routes": [
