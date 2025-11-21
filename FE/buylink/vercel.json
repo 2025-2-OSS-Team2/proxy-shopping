@@ -1,5 +1,21 @@
-
 {
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "https://NEXT_PUBLIC_API_URL/api/$1"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        {
+          "key": "x-api-key",
+          "value": "@api-key"
+        }
+      ]
+    }
+  ],
   "routes": [
     { "handle": "filesystem" },
     { "src": "/.*", "dest": "/index.html" }
