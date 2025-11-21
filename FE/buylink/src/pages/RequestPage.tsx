@@ -79,13 +79,12 @@ export default function RequestPage() {
 const fetchProductFromServer = async (
   url: string
 ): Promise<ApiResponse<ServerProduct>> => {
-  // 개발 환경일 때만 VITE_API_BASE_URL 사용
-  const base =
-    import.meta.env.DEV ? import.meta.env.VITE_API_BASE_URL ?? "" : "";
+  // DEV일 때만 백엔드 IP 사용, PROD(배포)에서는 빈 문자열
+  const base = import.meta.env.DEV ? import.meta.env.VITE_API_BASE_URL ?? "" : "";
 
   const finalUrl = `${base}/api/products/fetch`;
-
-  console.log("[fetchProductFromServer] 최종 URL:", finalUrl);
+  console.log("[fetchProductFromServer] DEV:", import.meta.env.DEV);
+  console.log("[fetchProductFromServer] Final URL:", finalUrl);
 
   const res = await fetch(finalUrl, {
     method: "POST",
