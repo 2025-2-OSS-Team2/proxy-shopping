@@ -76,10 +76,11 @@ export default function RequestPage() {
   type ServerProduct = Omit<Product, "quantity">;
 
   // 1) 상품 정보 크롤링: POST /api/products/fetch
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
   const fetchProductFromServer = async (
     url: string
   ): Promise<ApiResponse<ServerProduct>> => {
-    const res = await fetch("http://211.188.56.255:17788/api/products/fetch", {
+    const res = await fetch(`${API_BASE_URL}/api/products/fetch`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ url }),
