@@ -5,9 +5,5 @@
       "source": "/api/(.*)",
       "destination": "http://211.188.56.255:17788/api/$1"
     }
-  ],
-  "routes": [
-    { "handle": "filesystem" },
-    { "src": "/.*", "dest": "/index.html" }
   ]
 }
