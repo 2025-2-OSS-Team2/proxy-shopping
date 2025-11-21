@@ -26,11 +26,11 @@ type ApiResponse<T> = {
   error: string | null;
 };
 
-// /api/products/predict 응답 타입
-type PredictResponse = {
-  weight: number; // kg
-  volume: number; // m3
-};
+// // /api/products/predict 응답 타입
+// type PredictResponse = {
+//   weight: number; // kg
+//   volume: number; // m3
+// };
 
 export default function RequestPage() {
   const navigate = useNavigate();
@@ -93,23 +93,23 @@ export default function RequestPage() {
     return (await res.json()) as ApiResponse<ServerProduct>;
   };
 
-  // 2) AI 예측 호출 (선택)
-  const predictProductFromServer = async (
-    fetchResult: ApiResponse<ServerProduct>
-  ): Promise<PredictResponse> => {
-    const res = await fetch("/api/products/predict", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(fetchResult),
-      credentials: "include",
-    });
+  // // 2) AI 예측 호출 (선택)
+  // const predictProductFromServer = async (
+  //   fetchResult: ApiResponse<ServerProduct>
+  // ): Promise<PredictResponse> => {
+  //   const res = await fetch("/api/products/predict", {
+  //     method: "POST",
+  //     headers: { "Content-Type": "application/json" },
+  //     body: JSON.stringify(fetchResult),
+  //     credentials: "include",
+  //   });
 
-    if (!res.ok) {
-      throw new Error("AI 예측 요청에 실패했습니다.");
-    }
+  //   if (!res.ok) {
+  //     throw new Error("AI 예측 요청에 실패했습니다.");
+  //   }
 
-    return (await res.json()) as PredictResponse;
-  };
+  //   return (await res.json()) as PredictResponse;
+  // };
 
   // --------------------------------------------------------
   // URL 입력 후 “불러오기”
