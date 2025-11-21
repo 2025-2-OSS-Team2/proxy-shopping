@@ -79,7 +79,7 @@ export default function RequestPage() {
   const fetchProductFromServer = async (
     url: string
   ): Promise<ApiResponse<ServerProduct>> => {
-    const res = await fetch("/api/products/fetch", {
+    const res = await fetch("http://211.188.56.255:17788/api/products/fetch", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ url }),
