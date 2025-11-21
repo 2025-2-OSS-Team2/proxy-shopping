@@ -73,26 +73,51 @@ export default function RequestPage() {
   // 🔗 실제 백엔드 /api/products/fetch, /api/products/predict
   // --------------------------------------------------------
 
-  type ServerProduct = Omit<Product, "quantity">;
+ type ServerProduct = Omit<Product, "quantity">;
 
-  // 1) 상품 정보 크롤링: POST /api/products/fetch
-  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
-  const fetchProductFromServer = async (
-    url: string
-  ): Promise<ApiResponse<ServerProduct>> => {
-    const res = await fetch(`${API_BASE_URL}/api/products/fetch`, {
+// 1) 상품 정보 크롤링: POST /api/products/fetch
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+
+const fetchProductFromServer = async (
+  url: string
+): Promise<ApiResponse<ServerProduct>> => {
+  const finalUrl = `${API_BASE_URL}/api/products/fetch`;
+
+  // ✅ 요청 나가기 전 로그
+  console.log("[fetchProductFromServer] 요청 시작");
+  console.log("[fetchProductFromServer] 최종 URL:", finalUrl);
+  console.log("[fetchProductFromServer] body:", { url });
+
+  try {
+    const res = await fetch(finalUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ url }),
-      credentials: "include", // ← 세션/쿠키 쓰면 필요
+      credentials: "include",
     });
+
+    // ✅ HTTP 상태 코드 로그
+    console.log("[fetchProductFromServer] status:", res.status);
+    console.log("[fetchProductFromServer] ok:", res.ok);
+
+    // ✅ 응답 바디도 보고 싶으면 clone 써서 원본은 유지
+    const cloned = res.clone();
+    const rawText = await cloned.text();
+    console.log("[fetchProductFromServer] raw response text:", rawText);
 
     if (!res.ok) {
       throw new Error("상품 정보를 불러오는데 실패했습니다.");
     }
 
-    return (await res.json()) as ApiResponse<ServerProduct>;
-  };
+    const json = (await res.json()) as ApiResponse<ServerProduct>;
+    console.log("[fetchProductFromServer] parsed json:", json);
+
+    return json;
+  } catch (error) {
+    console.error("[fetchProductFromServer] ERROR:", error);
+    throw error;
+  }
+};
 
   // // 2) AI 예측 호출 (선택)
   // const predictProductFromServer = async (
