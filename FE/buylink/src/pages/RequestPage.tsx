@@ -4,6 +4,13 @@ import { useNavigate } from "react-router-dom";
 import { motion } from "motion/react";
 import { LinkIcon, X } from "lucide-react";
 import imgSpinner from "../assets/spinner.gif";
+import { normalizeSoldOutFlags } from "../utils/soldOutHelper";
+
+// 🔹 DEV/PROD 공통 API base URL
+const API_BASE_URL =
+  import.meta.env.DEV ? import.meta.env.VITE_API_BASE_URL ?? "" : "";
+
+const buildApiUrl = (path: string) => `${API_BASE_URL}${path}`;
 
 // --------------------------------------------------------
 // 타입 정의
@@ -33,38 +40,36 @@ export default function RequestPage() {
   const [isLoading, setIsLoading] = useState(false);
 
   const [products, setProducts] = useState<Product[]>([]);
-  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  // 🔹 선택 상태를 productURL 기반으로 관리
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   // --------------------------------------------------------
-  // 🔗 실제 백엔드 /api/products/fetch, /api/products/predict
+  // 🔗 실제 백엔드 /api/products/fetch
   // --------------------------------------------------------
 
- type ServerProduct = Omit<Product, "quantity">;
+  type ServerProduct = Omit<Product, "quantity">;
 
-// 1) 상품 정보 크롤링: POST /api/products/fetch
-const fetchProductFromServer = async (
-  url: string
-): Promise<ApiResponse<ServerProduct>> => {
-  // DEV일 때만 백엔드 IP 사용, PROD(배포)에서는 빈 문자열
-  const base = import.meta.env.DEV ? import.meta.env.VITE_API_BASE_URL ?? "" : "";
+  // 1) 상품 정보 크롤링: POST /api/products/fetch
+  const fetchProductFromServer = async (
+    url: string
+  ): Promise<ApiResponse<ServerProduct>> => {
+    const finalUrl = buildApiUrl("/api/products/fetch");
+    console.log("[fetchProductFromServer] DEV:", import.meta.env.DEV);
+    console.log("[fetchProductFromServer] Final URL:", finalUrl);
 
-  const finalUrl = `${base}/api/products/fetch`;
-  console.log("[fetchProductFromServer] DEV:", import.meta.env.DEV);
-  console.log("[fetchProductFromServer] Final URL:", finalUrl);
+    const res = await fetch(finalUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url }),
+      credentials: "include",
+    });
 
-  const res = await fetch(finalUrl, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ url }),
-    credentials: "include",
-  });
+    if (!res.ok) {
+      throw new Error("상품 정보를 불러오는데 실패했습니다.");
+    }
 
-  if (!res.ok) {
-    throw new Error("상품 정보를 불러오는데 실패했습니다.");
-  }
-
-  return (await res.json()) as ApiResponse<ServerProduct>;
-};
+    return (await res.json()) as ApiResponse<ServerProduct>;
+  };
 
   // --------------------------------------------------------
   // URL 입력 후 “불러오기”
@@ -76,10 +81,6 @@ const fetchProductFromServer = async (
     try {
       const url = urlInput.trim();
 
-      // 같은 URL이 이미 있으면 두 번째부터 품절 처리
-      const sameCount = products.filter((p) => p.productURL === url).length;
-      const computedSoldOut = sameCount >= 1;
-
       // 🔥 1) 상품 크롤링 API 호출
       const fetchResult = await fetchProductFromServer(url);
 
@@ -89,24 +90,14 @@ const fetchProductFromServer = async (
         return;
       }
 
-      // 🔄 백엔드 product + 프론트 전용 quantity 추가
-      const apiData: ApiResponse<Product> = {
-        success: true,
-        data: {
-          ...fetchResult.data,
-          isSoldOut: fetchResult.data.isSoldOut ?? computedSoldOut ?? false,
-          quantity: 1,
-        },
-        error: null,
+      const newProduct: Product = {
+        ...fetchResult.data,
+        isSoldOut: fetchResult.data.isSoldOut ?? false,
+        quantity: 1,
       };
 
-      if (!apiData.success || !apiData.data) {
-        alert(apiData.error ?? "유효하지 않은 URL입니다.");
-        setIsLoading(false);
-        return;
-      }
-
-      setProducts((prev) => [...prev, apiData.data!]);
+      // 🔁 품절 규칙 재계산
+      setProducts((prev) => normalizeSoldOutFlags<Product>([...prev, newProduct]));
       setUrlInput("");
     } catch (e) {
       console.error(e);
@@ -120,28 +111,40 @@ const fetchProductFromServer = async (
   // 삭제 / 선택 토글
   // --------------------------------------------------------
   const handleDelete = (index: number) => {
-    setProducts((prev) => prev.filter((_, i) => i !== index));
-    setSelectedIds((prev) => {
-      const newSet = new Set(prev);
-      newSet.delete(index);
-      return newSet;
+    // 현재 렌더 기준으로 삭제 대상 productURL 구해두기
+    const removed = products[index];
+
+    setProducts((prev) => {
+      const filtered = prev.filter((_, i) => i !== index);
+      // 🔁 삭제 후 품절 상태 재계산
+      return normalizeSoldOutFlags<Product>(filtered);
     });
+
+    if (removed) {
+      // 삭제된 상품 URL 선택 해제
+      setSelectedIds((prev) => {
+        const newSet = new Set(prev);
+        newSet.delete(removed.productURL);
+        return newSet;
+      });
+    }
   };
 
-  const handleToggleSelect = (index: number) => {
+  const handleToggleSelect = (productURL: string) => {
     setSelectedIds((prev) => {
       const newSet = new Set(prev);
-      newSet.has(index) ? newSet.delete(index) : newSet.add(index);
+      newSet.has(productURL) ? newSet.delete(productURL) : newSet.add(productURL);
       return newSet;
     });
   };
 
   // --------------------------------------------------------
-  // 장바구니 담기 (localStorage 버전)
+  // 장바구니 담기 (localStorage 버전) → 서버 /api/cart 버전
   // --------------------------------------------------------
   const handleAddToCart = async () => {
+    // 🔹 productURL 기반 선택 + 품절 제외
     const selectedProducts = products.filter(
-      (p, i) => selectedIds.has(i) && !p.isSoldOut
+      (p) => selectedIds.has(p.productURL) && !p.isSoldOut
     );
 
     if (selectedProducts.length === 0) {
@@ -149,8 +152,47 @@ const fetchProductFromServer = async (
       return;
     }
 
-    localStorage.setItem("cartProducts", JSON.stringify(selectedProducts));
-    navigate("/cart");
+    try {
+      const finalUrl = buildApiUrl("/api/cart");
+      console.log("[RequestPage] POST /api/cart (selected products):", finalUrl);
+
+      // 선택된 상품들만 순차적으로 장바구니에 추가
+      for (const p of selectedProducts) {
+        const payload = {
+          url: p.productURL,
+          productName: p.productName,
+          productDescription: p.productDescription,
+          priceKRW: p.priceKRW,
+          hasShippingFee: p.hasShippingFee,
+          category: p.category,
+          imageUrl: p.imageUrls[0] ?? "",
+          imageUrls: p.imageUrls,
+          isSoldOut: p.isSoldOut,
+        };
+
+        console.log("[RequestPage] POST /api/cart payload:", payload);
+
+        const res = await fetch(finalUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+          credentials: "include",
+        });
+
+        if (!res.ok) {
+          throw new Error("장바구니 담기 실패");
+        }
+
+        const json = await res.json();
+        console.log("[RequestPage] /api/cart response:", json);
+      }
+
+      // 모두 성공하면 장바구니 페이지로 이동
+      navigate("/cart");
+    } catch (e) {
+      console.error("[RequestPage] handleAddToCart error:", e);
+      alert("장바구니에 담는 중 문제가 발생했습니다.");
+    }
   };
 
   // --------------------------------------------------------
@@ -215,9 +257,9 @@ const fetchProductFromServer = async (
               <div className="flex gap-4 items-center">
                 <input
                   type="checkbox"
-                  checked={selectedIds.has(i)}
+                  checked={selectedIds.has(p.productURL)}
                   disabled={p.isSoldOut}
-                  onChange={() => handleToggleSelect(i)}
+                  onChange={() => handleToggleSelect(p.productURL)}
                   className="w-5 h-5 accent-[#ffcc4c] disabled:opacity-40"
                 />
 
@@ -244,7 +286,7 @@ const fetchProductFromServer = async (
                   <p className="font-semibold mt-1">
                     {p.priceKRW.toLocaleString()}원
                   </p>
-                  <p className="text-sm text-[#767676] mt-1">
+                  <p className="text-sm text-[#76776  ] mt-1">
                     수량: {p.quantity}개
                   </p>
                 </div>
