@@ -52,8 +52,6 @@ export function validateAddress(values: AddressFormValues): AddressFormErrors {
   }
 
   // 4) 우편번호
-  // 👉 직접 입력받는 게 아니라 /api/address/search 결과 선택으로만 채워지지만,
-  //    "아예 선택 안 한 경우"는 막아야 하니까 비어있는지만 체크
   if (!values.postalCode.trim()) {
     errors.postalCode = "주소 검색 후 우편번호를 선택해 주세요.";
   }
@@ -97,3 +95,61 @@ export const validateCustomsCode = (rawCode: string): string | null => {
 
   return null;
 };
+
+/************************************************
+ * 4. 주문내역 조회 폼 유효성 검사
+ ************************************************/
+
+export type OrderHistoryFormValues = {
+  receiverName: string;
+  phone: string;
+  orderId: string;
+};
+
+export type OrderHistoryFormErrors = {
+  receiverName?: string;
+  phone?: string;
+  orderId?: string;
+};
+
+// 주문번호에서 숫자만 남기기
+export const normalizeOrderId = (value: string) =>
+  value.replace(/[^0-9]/g, "");
+
+// 숫자 14자리면 유효
+export const isValidOrderId = (orderId: string) => {
+  const digits = normalizeOrderId(orderId);
+  return digits.length === 14;
+};
+
+// 이름 + 전화번호 + 주문번호 한 번에 검증
+export function validateOrderHistory(
+  values: OrderHistoryFormValues
+): OrderHistoryFormErrors {
+  const errors: OrderHistoryFormErrors = {};
+
+  const name = values.receiverName.trim();
+  const phone = values.phone.trim();
+  const orderId = values.orderId.trim();
+
+  // 1) 이름
+  if (!name) {
+    errors.receiverName = "이름을 입력해 주세요.";
+  }
+
+  // 2) 전화번호 (주소 폼과 동일 기준 사용)
+  if (!phone) {
+    errors.phone = "전화번호를 입력해 주세요.";
+  } else if (!isValidPhoneNumber(phone)) {
+    errors.phone = "전화번호 형식을 다시 확인해 주세요.";
+  }
+
+  // 3) 주문번호 (숫자 14자리)
+  if (!orderId) {
+    errors.orderId = "주문번호를 입력해 주세요.";
+  } else if (!isValidOrderId(orderId)) {
+    errors.orderId = "주문번호 14자리 숫자를 입력해 주세요.";
+  }
+
+  return errors;
+}

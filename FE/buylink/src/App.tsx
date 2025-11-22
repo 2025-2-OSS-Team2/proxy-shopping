@@ -7,6 +7,7 @@ import CheckoutPage from "./pages/CheckoutPage";
 import OrderCompletePage from "./pages/OrderCompletePage";
 import NotFoundPage from "./pages/NotFoundPage";
 import PaymentsSuccessPage from "./pages/PaymentsSuccessPage";
+import OrderHistoryPage from "./pages/OrderHistoryPage";
 
 const router = createBrowserRouter([
   {
@@ -20,6 +21,7 @@ const router = createBrowserRouter([
       { path: "checkout", element: <CheckoutPage /> }, // 결제
       { path: "payments/success", element: <PaymentsSuccessPage /> },
       { path: "order-complete", element: <OrderCompletePage /> }, // 주문 완료
+      { path: "orders", element: <OrderHistoryPage /> }, // 주문 내역
     ],
   },
 ]);
