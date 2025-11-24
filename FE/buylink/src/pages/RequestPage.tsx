@@ -97,7 +97,9 @@ export default function RequestPage() {
       };
 
       // 🔁 품절 규칙 재계산
-      setProducts((prev) => normalizeSoldOutFlags<Product>([...prev, newProduct]));
+      setProducts((prev) =>
+        normalizeSoldOutFlags<Product>([...prev, newProduct])
+      );
       setUrlInput("");
     } catch (e) {
       console.error(e);
@@ -218,7 +220,7 @@ export default function RequestPage() {
           <h2 className="text-lg font-semibold mb-4">상품 추가</h2>
           <div className="flex gap-3">
             <div className="relative flex-1">
-              <LinkIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-[#767676] w-4 h-4" />
+              <LinkIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-[#76776  ] w-4 h-4" />
               <input
                 type="text"
                 value={urlInput}
@@ -253,6 +255,9 @@ export default function RequestPage() {
           {products.map((p, i) => (
             <motion.div
               key={i}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.25 }}
               className="relative bg-white rounded-2xl shadow-md border p-5 space-y-4"
             >
               <div className="flex gap-4 items-center">
