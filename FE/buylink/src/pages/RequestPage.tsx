@@ -304,9 +304,9 @@ export default function RequestPage() {
 
           {/* 🔹 상품이 있을 때: 카드들 아래, 버튼 위에 스피너 */}
           {isLoading && (
-            <div className="flex flex-col items-center justify-center py-8">
-              <img src={imgSpinner} alt="loading" className="w-16" />
-              <p className="mt-3 text-[#505050] text-sm">
+            <div className="w-full max-w-2xl flex flex-col items-center justify-center py-16">
+              <img src={imgSpinner} alt="loading" className="w-20" />
+              <p className="mt-4 text-[#505050] text-sm">
                 상품을 불러오고 있어요...
               </p>
             </div>
