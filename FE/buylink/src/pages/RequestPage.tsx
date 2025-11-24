@@ -240,10 +240,11 @@ export default function RequestPage() {
         </div>
       </motion.div>
 
-      {isLoading && (
-        <div className="text-center py-12 space-y-4 mt-60">
-          <img src={imgSpinner} alt="loading" className="mx-auto w-20" />
-          <p className="text-[#505050]">상품을 불러오고 있어요...</p>
+      {/* 🔹 상품이 아직 없을 때: URL 박스 바로 아래에 스피너 */}
+      {isLoading && products.length === 0 && (
+        <div className="w-full max-w-2xl flex flex-col items-center justify-center py-16">
+          <img src={imgSpinner} alt="loading" className="w-20" />
+          <p className="mt-4 text-[#505050]">상품을 불러오고 있어요...</p>
         </div>
       )}
 
@@ -300,6 +301,16 @@ export default function RequestPage() {
               </div>
             </motion.div>
           ))}
+
+          {/* 🔹 상품이 있을 때: 카드들 아래, 버튼 위에 스피너 */}
+          {isLoading && (
+            <div className="flex flex-col items-center justify-center py-8">
+              <img src={imgSpinner} alt="loading" className="w-16" />
+              <p className="mt-3 text-[#505050] text-sm">
+                상품을 불러오고 있어요...
+              </p>
+            </div>
+          )}
 
           <motion.button
             whileHover={{ scale: 1.02 }}
