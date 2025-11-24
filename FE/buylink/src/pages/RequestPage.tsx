@@ -241,7 +241,7 @@ export default function RequestPage() {
       </motion.div>
 
       {isLoading && (
-        <div className="text-center py-12 space-y-4 mt-20">
+        <div className="text-center py-12 space-y-4 mt-50">
           <img src={imgSpinner} alt="loading" className="mx-auto w-20" />
           <p className="text-[#505050]">상품을 불러오고 있어요...</p>
         </div>
