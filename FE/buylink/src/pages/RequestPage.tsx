@@ -242,7 +242,7 @@ export default function RequestPage() {
 
       {/* 🔹 상품이 아직 없을 때: URL 박스 바로 아래에 스피너 */}
       {isLoading && products.length === 0 && (
-        <div className="w-full max-w-2xl flex flex-col items-center justify-center py-16">
+        <div className="w-full max-w-2xl flex flex-col items-center justify-center py-16 mt-60">
           <img src={imgSpinner} alt="loading" className="w-20" />
           <p className="mt-4 text-[#505050]">상품을 불러오고 있어요...</p>
         </div>
