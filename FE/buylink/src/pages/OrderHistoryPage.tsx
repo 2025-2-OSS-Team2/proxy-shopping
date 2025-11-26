@@ -43,9 +43,6 @@ type OrderDetail = {
   createdAt?: string;
 };
 
-// 🔹 GET /api/orders/{orderId} 응답
-type OrderDetailApiResponse = OrderDetail;
-
 // =============================
 // 유틸 함수
 // =============================
