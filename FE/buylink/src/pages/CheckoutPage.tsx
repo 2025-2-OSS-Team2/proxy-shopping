@@ -613,7 +613,10 @@ function AddressModal({
         onSaved(json.data);
 
         // ✅ addressId를 localStorage에 저장
-  window.localStorage.setItem("buylink_addressId", String(json.data.id));
+        window.localStorage.setItem("buylink_addressId", String(json.data.id));
+        window.localStorage.setItem("buylink_receiverName", json.data.receiverName);
+        window.localStorage.setItem("buylink_receiverPhone", json.data.phone);
+
       } else {
         alert(json.error ?? "배송지 등록에 실패했습니다.");
       }
