@@ -230,10 +230,18 @@ export default function CartQuotation({
             whileTap={{ scale: 0.98 }}
             onClick={onCheckout}
             disabled={isLoading || !estimate}
-            className="w-full mt-3 py-4 rounded-xl bg-gradient-to-r from-[#ffe788] to-[#ffcc4c] text-[#111111] shadow-lg hover:shadow-xl transition-all duration-300 font-[600] flex justify-between items-center disabled:opacity-60"
+            className="
+              w-full mt-3 py-4 px-6
+              rounded-xl bg-gradient-to-r from-[#ffe788] to-[#ffcc4c]
+              text-[#111111] shadow-lg hover:shadow-xl
+              transition-all duration-300 font-[600]
+              flex items-center justify-between
+              disabled:opacity-60
+            "
           >
-            <span className="text-sm text-[#505050]">총 결제 예상 금액</span>
-            <span className="text-base font-[700] text-[#111111]">
+            <span className="text-sm text-[#505050] whitespace-nowrap">총 결제 예상 금액</span>
+
+            <span className="text-base font-[700] text-[#111111] whitespace-nowrap">
               {formatKRW(estimate.grandTotalKRW)}
             </span>
           </motion.button>
