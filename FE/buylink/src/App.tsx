@@ -1,5 +1,6 @@
 import { createBrowserRouter, RouterProvider } from "react-router-dom";
-import MainLayout from "./layouts/MainLayout"; // ✅ 레이아웃
+import MainLayout from "./layouts/MainLayout";
+
 import MainPage from "./pages/MainPage";
 import RequestPage from "./pages/RequestPage";
 import CartPage from "./pages/CartPage";
@@ -10,20 +11,36 @@ import PaymentsSuccessPage from "./pages/PaymentsSuccessPage";
 import OrderHistoryPage from "./pages/OrderHistoryPage";
 
 const router = createBrowserRouter([
+  // ===========================
+  // 🔹 메인 레이아웃이 필요한 루트
+  // ===========================
   {
     path: "/",
-    element: <MainLayout />, // ✅ 공통 헤더/푸터 들어가는 레이아웃
+    element: <MainLayout />,
     errorElement: <NotFoundPage />,
     children: [
-      { index: true, element: <MainPage /> }, // ✅ 홈
-      { path: "request", element: <RequestPage /> }, // 구매 요청
-      { path: "cart", element: <CartPage /> }, // 장바구니
-      { path: "checkout", element: <CheckoutPage /> }, // 결제
-      { path: "payments/success", element: <PaymentsSuccessPage /> },
-      { path: "order-complete", element: <OrderCompletePage /> }, // 주문 완료
-      { path: "orders", element: <OrderHistoryPage /> }, // 주문 내역
+      { index: true, element: <MainPage /> },
+      { path: "request", element: <RequestPage /> },
+      { path: "cart", element: <CartPage /> },
+      { path: "checkout", element: <CheckoutPage /> },
+      { path: "order-complete", element: <OrderCompletePage /> },
+      { path: "orders", element: <OrderHistoryPage /> },
     ],
   },
+
+  // ===========================
+  // 🔹 메인 레이아웃 없이 단독 페이지
+  // ===========================
+  {
+    path: "/payments/success",
+    element: <PaymentsSuccessPage />,
+  },
+
+  // (필요하면 실패 페이지도 추가)
+  // {
+  //   path: "/payments/fail",
+  //   element: <PaymentsFailPage />,
+  // },
 ]);
 
 function App() {
