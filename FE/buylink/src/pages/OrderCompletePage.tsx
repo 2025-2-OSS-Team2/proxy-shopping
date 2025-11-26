@@ -10,7 +10,7 @@ import sampleimg from "../assets/cuteeeee.png";
 type OrderItem = {
   id: number;
   productName: string;
-  price: number; // 🔹 backend: price
+  price: number; // backend: price
   quantity: number;
   imageUrl?: string;
 };
@@ -21,13 +21,12 @@ type ShippingInfo = {
 };
 
 type OrderDetail = {
-  orderId: string; // 🔹 "20251126183012" 같은 문자열
+  orderId: string; // "20251126183012" 같은 문자열
   receiver: string;
   paymentMethod: string | null;
   totalAmount: number;
   items: OrderItem[];
   shipping: ShippingInfo;
-  // createdAt, address, phone 등은 명세에 없음 → 필요하면 나중에 추가
 };
 
 // 🔹 GET /api/orders/{orderId} 응답 타입
@@ -63,8 +62,10 @@ export default function OrderCompletePage() {
 
   // /order-complete/:orderId or navigate(..., { state: { orderId } })
   const orderIdFromParams = params.orderId; // string 그대로
-  const orderIdFromState =
-    (location.state as { orderId?: string } | undefined)?.orderId;
+  const locationState = location.state as
+    | { orderId?: string; receiver?: string; phone?: string }
+    | undefined;
+  const orderIdFromState = locationState?.orderId;
 
   const effectiveOrderId = orderIdFromParams ?? orderIdFromState ?? "";
 
@@ -84,20 +85,32 @@ export default function OrderCompletePage() {
         setLoading(true);
         setLoadError(null);
 
-        // 🔹 localStorage에서 receiver / phone 가져오기
-        const receiverName =
+        console.log("[OrderCompletePage] effectiveOrderId:", effectiveOrderId);
+
+        // 🔹 1) state에서 receiver / phone 우선 사용
+        const receiverFromState = locationState?.receiver ?? null;
+        const phoneFromState = locationState?.phone ?? null;
+
+        // 🔹 2) localStorage에서 보조로 사용
+        const receiverFromStorage =
           typeof window !== "undefined"
             ? window.localStorage.getItem(RECEIVER_NAME_KEY)
             : null;
-        const receiverPhone =
+        const phoneFromStorage =
           typeof window !== "undefined"
             ? window.localStorage.getItem(RECEIVER_PHONE_KEY)
             : null;
 
+        const receiverForQuery = receiverFromState ?? receiverFromStorage ?? "";
+        const phoneForQuery = phoneFromState ?? phoneFromStorage ?? "";
+
+        console.log("[OrderCompletePage] receiverForQuery:", receiverForQuery);
+        console.log("[OrderCompletePage] phoneForQuery:", phoneForQuery);
+
         // 쿼리스트링 구성
         const searchParams = new URLSearchParams();
-        if (receiverName) searchParams.append("receiver", receiverName);
-        if (receiverPhone) searchParams.append("phone", receiverPhone);
+        if (receiverForQuery) searchParams.append("receiver", receiverForQuery);
+        if (phoneForQuery) searchParams.append("phone", phoneForQuery);
 
         let url = buildApiUrl(`/api/orders/${effectiveOrderId}`);
         const qs = searchParams.toString();
@@ -124,7 +137,10 @@ export default function OrderCompletePage() {
             "[OrderCompletePage] /api/orders error body:",
             text
           );
-          throw new Error(`주문 상세 조회 실패 (status ${res.status})`);
+          // 🔹 서버에서 내려준 메시지를 그대로 에러에 포함
+          throw new Error(
+            `주문 상세 조회 실패 (status ${res.status}): ${text}`
+          );
         }
 
         const json: OrderDetailApiResponse = await res.json();
@@ -140,14 +156,18 @@ export default function OrderCompletePage() {
         setOrder(json.data);
       } catch (e) {
         console.error("[OrderCompletePage] fetchOrder error:", e);
-        setLoadError("주문 정보를 불러오는 중 문제가 발생했습니다.");
+        setLoadError(
+          e instanceof Error
+            ? e.message
+            : "주문 정보를 불러오는 중 문제가 발생했습니다."
+        );
       } finally {
         setLoading(false);
       }
     };
 
     fetchOrder();
-  }, [effectiveOrderId]);
+  }, [effectiveOrderId, locationState]);
 
   const handleCopyOrderId = () => {
     if (!order) return;
