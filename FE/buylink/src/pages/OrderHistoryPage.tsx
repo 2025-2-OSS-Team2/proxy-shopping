@@ -126,12 +126,20 @@ export default function OrderHistoryPage() {
       });
 
       if (!res.ok) {
-        // 404, 403 등 모두 여기로 들어옴
         throw new Error("주문 정보를 찾을 수 없습니다.");
       }
 
-      const data = (await res.json()) as OrderDetailApiResponse;
-      setOrder(data);
+      const json = (await res.json()) as {
+        success: boolean;
+        data: OrderDetail | null;
+        error: string | null;
+      };
+
+      if (!json.success || !json.data) {
+        throw new Error(json.error ?? "주문 정보를 찾을 수 없습니다.");
+      }
+
+      setOrder(json.data);
     } catch (e) {
       console.error("[OrderHistoryPage] handleSearch error:", e);
       // setLoadError("주문 정보를 불러오는 중 문제가 발생했습니다.");
