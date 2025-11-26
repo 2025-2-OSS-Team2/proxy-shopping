@@ -2,10 +2,12 @@
 import { useEffect, useState } from "react";
 import { motion } from "motion/react";
 import sampleimg from "../assets/cuteeeee.png";
-// 🔹 추가: 주소 유효성 검사 util
 // 🔹 주소 + 개인통관고유번호 유효성 검사 util
-import { validateAddress, type AddressFormValues, validateCustomsCode,} from "../utils/validation";
-
+import {
+  validateAddress,
+  type AddressFormValues,
+  validateCustomsCode,
+} from "../utils/validation";
 
 // =============================
 // TossPayments 전역 타입 선언
@@ -131,15 +133,6 @@ type CartEstimateApiResponse = {
   error: string | null;
 };
 
-// 🔹 /api/orders/pay 응답 타입 (지금은 사용 X, 나중용)
-/*
-type OrdersPayResponse = {
-  paymentId: string;
-  status: "SUCCESS" | "FAIL";
-  paidAt?: string;
-};
-*/
-
 const formatKRW = (v: number) => `${v.toLocaleString()}원`;
 
 // ========================================
@@ -163,8 +156,6 @@ export default function CheckoutPage() {
 
   // ==============================
   // 주문/견적 불러오기
-  //  - GET /api/cart → 주문 상품 리스트
-  //  - POST /api/cart/estimate → 결제 금액 및 수수료/배송비 정보
   // ==============================
   useEffect(() => {
     const fetchOrderAndEstimate = async () => {
@@ -194,7 +185,6 @@ export default function CheckoutPage() {
           id: item.id,
           productName: item.productName,
           priceKRW: item.priceKRW,
-          // 백엔드 스펙에 quantity가 없으니 일단 1로 고정
           quantity: 1,
           imageUrl: item.imageUrl,
         }));
@@ -209,8 +199,6 @@ export default function CheckoutPage() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            // CheckoutPage에서는 옵션 상태를 아직 모르니까,
-            // 기본값(추가포장 true, 보험 true/false)은 서비스 정책에 맞춰서 수정 가능
             extraPackaging: true,
             insurance: true,
           }),
@@ -222,7 +210,10 @@ export default function CheckoutPage() {
         }
 
         const estimateJson = (await estimateRes.json()) as CartEstimateApiResponse;
-        console.log("[CheckoutPage] /api/cart/estimate response:", estimateJson);
+        console.log(
+          "[CheckoutPage] /api/cart/estimate response:",
+          estimateJson
+        );
 
         if (!estimateJson.success || !estimateJson.data) {
           throw new Error(estimateJson.error ?? "견적 계산 실패");
@@ -231,7 +222,6 @@ export default function CheckoutPage() {
         setEstimate(estimateJson.data);
       } catch (e) {
         console.error("[CheckoutPage] fetchOrderAndEstimate error:", e);
-        // 실패해도 UI는 그대로, 금액 0으로 노출
         setOrderItems([]);
         setEstimate(null);
       } finally {
@@ -244,8 +234,6 @@ export default function CheckoutPage() {
 
   // ==============================
   // 결제 금액
-  //  - 기본: 견적 grandTotalKRW 사용
-  //  - 견적 없으면 fallback으로 상품 합계 사용
   // ==============================
   const productTotal = orderItems.reduce(
     (sum, item) => sum + item.priceKRW * item.quantity,
@@ -257,7 +245,6 @@ export default function CheckoutPage() {
   const fallbackTotal = productTotal - discount + shippingFee;
   const totalAmount = estimate ? estimate.grandTotalKRW : fallbackTotal;
 
-  // 코드 일부 마스킹용 (P1234*****890 이런 느낌)
   const maskCustomsCode = (code: string) => {
     if (code.length <= 5) return code;
     return (
@@ -267,7 +254,6 @@ export default function CheckoutPage() {
 
   // ==============================
   // 결제 버튼 클릭
-  //  - 결제수단 선택 없이 바로 TossPayments 테스트 결제
   // ==============================
   const handlePay = async () => {
     if (!savedAddress) {
@@ -298,22 +284,16 @@ export default function CheckoutPage() {
       }
 
       const tossPayments = window.TossPayments(TOSS_CLIENT_KEY);
-
-      // 실제 서비스에서 orderId는 백엔드에서 관리하는 유니크 값으로 맞추면 된다.
       const orderId = `ORDER-${Date.now()}`;
 
       await tossPayments.requestPayment("CARD", {
-        // 간편결제(토스페이)도 보통 "CARD" 타입으로 호출
         amount: totalAmount,
         orderId,
         orderName: "BuyLink 구매대행 결제",
         customerName: savedAddress.receiverName,
         successUrl: `${window.location.origin}/payments/success`,
         failUrl: `${window.location.origin}/payments/fail`,
-        // easyPay: "TOSSPAY", // 나중에 간편결제 종류까지 지정하고 싶으면 사용
       });
-
-      // requestPayment 이후에는 success/fail URL로 리다이렉트된다.
     } catch (error: any) {
       console.error(error);
       alert(
@@ -337,9 +317,7 @@ export default function CheckoutPage() {
       </h1>
 
       <div className="grid lg:grid-cols-[2fr,1fr] gap-6 lg:gap-8">
-        {/* =========================
-            LEFT
-        ========================== */}
+        {/* LEFT */}
         <section className="space-y-6">
           {/* 배송지 */}
           <div className="bg-white rounded-2xl shadow p-6 border border-gray-200">
@@ -394,13 +372,15 @@ export default function CheckoutPage() {
                 </p>
               </div>
             ) : (
-              <div className="border border-dashed border-[#e5e5ec] rounded-xl py-5 px-4 text-sm text-[#767676]">
+              <div className="border border-dashed border-[#e5e5ec] rounded-xl py-5 px-4 text-sm text-[#76776
+
+]">
                 개인통관고유번호를 등록해 주세요.
               </div>
             )}
           </div>
 
-          {/* 구매대행 상품 (장바구니에서 불러온 orderItems 사용) */}
+          {/* 구매대행 상품 */}
           <div className="bg-white rounded-2xl shadow p-6 border border-gray-200">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold text-[#111111]">
@@ -465,9 +445,7 @@ export default function CheckoutPage() {
           </div>
         </section>
 
-        {/* =========================
-            RIGHT
-        ========================== */}
+        {/* RIGHT */}
         <aside className="space-y-4">
           <div className="bg-white rounded-2xl shadow p-6 border border-gray-200 space-y-3">
             <h2 className="text-lg font-semibold text-[#111111] mb-2">
@@ -489,11 +467,7 @@ export default function CheckoutPage() {
 
               <div className="flex justify-between">
                 <span className="text-[#505050]">배송비</span>
-                <span className="text-[#111111] font-medium">
-                  {/* estimate가 있으면 배송비 포함된 형태지만,
-                      여기서는 디자인 그대로 "무료" 표기 유지 */}
-                  무료
-                </span>
+                <span className="text-[#111111] font-medium">무료</span>
               </div>
             </div>
 
@@ -519,9 +493,7 @@ export default function CheckoutPage() {
         </aside>
       </div>
 
-      {/* =============================
-          배송지 등록 MODAL
-      ============================== */}
+      {/* 배송지 등록 MODAL */}
       {addressModalOpen && (
         <AddressModal
           onClose={() => setAddressModalOpen(false)}
@@ -532,9 +504,7 @@ export default function CheckoutPage() {
         />
       )}
 
-      {/* =============================
-          개인통관고유번호 MODAL
-      ============================== */}
+      {/* 개인통관고유번호 MODAL */}
       {customsModalOpen && (
         <CustomsCodeModal
           onClose={() => setCustomsModalOpen(false)}
@@ -564,12 +534,9 @@ function AddressModal({
   const [searchResults, setSearchResults] = useState<AddressResult[]>([]);
   const [roadAddress, setRoadAddress] = useState("");
   const [postalCode, setPostalCode] = useState("");
-  const [detailAddress] = useState("");
+  const [detailAddress, setDetailAddress] = useState(""); // ✅ 상세주소 state
   const [deliveryRequest, setDeliveryRequest] = useState("");
 
-  // =============================
-  // 주소 검색 (실제 API 호출)
-  // =============================
   const handleSearch = async () => {
     if (!query.trim()) return;
 
@@ -598,11 +565,7 @@ function AddressModal({
     }
   };
 
-  // =============================
-  // 배송지 등록 (실제 API 호출) + 유효성 검사
-  // =============================
   const handleSubmit = async () => {
-    // 🔹 유효성 검사용 값 구성
     const values: AddressFormValues = {
       receiverName: receiverName.trim(),
       phone: phone.trim(),
@@ -622,7 +585,7 @@ function AddressModal({
 
     const payload: Omit<SavedAddress, "id"> = {
       receiverName: values.receiverName,
-      phone: values.phone, // 하이픈 포함 그대로 서버로 전송
+      phone: values.phone,
       postalCode: values.postalCode,
       roadAddress: values.roadAddress,
       detailAddress: values.detailAddress,
@@ -662,7 +625,6 @@ function AddressModal({
       <div className="bg-white w-full max-w-lg rounded-2xl shadow-xl p-6 space-y-4">
         <h2 className="text-lg font-semibold text-[#111111]">배송지 등록</h2>
 
-        {/* 이름 */}
         <input
           value={receiverName}
           onChange={(e) => setReceiverName(e.target.value)}
@@ -670,7 +632,6 @@ function AddressModal({
           className="w-full border rounded-lg px-4 py-2 text-sm"
         />
 
-        {/* 전화번호 */}
         <input
           value={phone}
           onChange={(e) => setPhone(e.target.value)}
@@ -678,7 +639,6 @@ function AddressModal({
           className="w-full border rounded-lg px-4 py-2 text-sm"
         />
 
-        {/* 주소 검색 */}
         <div className="flex gap-2">
           <input
             value={query}
@@ -694,7 +654,6 @@ function AddressModal({
           </button>
         </div>
 
-        {/* 검색 결과 */}
         {searchResults.length > 0 && (
           <div className="border rounded-lg p-3 space-y-2 max-h-40 overflow-y-auto">
             {searchResults.map((addr, idx) => (
@@ -712,7 +671,6 @@ function AddressModal({
           </div>
         )}
 
-
         <input
           value={roadAddress}
           readOnly
@@ -729,6 +687,7 @@ function AddressModal({
 
         <input
           value={detailAddress}
+          onChange={(e) => setDetailAddress(e.target.value)}
           placeholder="상세 주소"
           className="w-full border rounded-lg px-4 py-2 text-sm"
         />
@@ -776,7 +735,6 @@ function CustomsCodeModal({
   const handleVerify = async () => {
     const trimmed = code.trim();
 
-    // 🔹 형식 유효성 검사 (P + 12자리 숫자)
     const validationError = validateCustomsCode(trimmed);
     if (validationError) {
       alert(validationError);
@@ -816,7 +774,6 @@ function CustomsCodeModal({
       setLoading(false);
     }
   };
-
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
