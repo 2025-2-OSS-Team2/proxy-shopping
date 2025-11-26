@@ -1,29 +1,43 @@
-// src/pages/PaymentsSuccessPage.tsx
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { motion } from "motion/react";
 
-// 결제 검증 응답 타입 (/api/orders/pay)
-type OrdersPayResponse = {
-  paymentId: string;
+// -----------------------------
+// ✅ 결제 검증 응답 타입 (/api/orders/pay)
+// -----------------------------
+type OrdersPayResponseData = {
+  paymentKey: string;
+  orderId: string;
   status: "DONE" | "FAIL";
-  paidAt?: string;
+  totalAmount: number;
+  approvedAt: string;
 };
 
-// 주문 생성 응답 타입 (/api/orders)
-// ⚠️ 실제 백엔드 스펙이랑 다를 수 있음 (지금은 일단 그대로 둠)
+type OrdersPayResponse = {
+  success: boolean;
+  data: OrdersPayResponseData | null;
+  error: string | null;
+};
+
+// -----------------------------
+// ✅ 주문 생성 응답 타입 (/api/orders)
+// -----------------------------
 type CreateOrderResponse = {
   orderId: number;
   totalAmount: number;
   status: "PAID" | "PENDING" | "CANCELLED";
 };
 
-// 🔹 DEV/PROD 공통 API base URL
+// -----------------------------
+// ✅ 공통 API Base URL
+// -----------------------------
 const API_BASE_URL =
   import.meta.env.DEV ? import.meta.env.VITE_API_BASE_URL ?? "" : "";
-
 const buildApiUrl = (path: string) => `${API_BASE_URL}${path}`;
 
+// -----------------------------
+// ✅ 컴포넌트 본문
+// -----------------------------
 export default function PaymentsSuccessPage() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -33,9 +47,8 @@ export default function PaymentsSuccessPage() {
 
   useEffect(() => {
     const qs = new URLSearchParams(location.search);
-
     const paymentKey = qs.get("paymentKey");
-    const orderIdFromToss = qs.get("orderId"); // Checkout에서 넘긴 orderId
+    const orderIdFromToss = qs.get("orderId");
     const amountStr = qs.get("amount");
 
     console.log("[PaymentsSuccessPage] query params:", {
@@ -55,9 +68,9 @@ export default function PaymentsSuccessPage() {
 
     const run = async () => {
       try {
-        // ─────────────────────────────
-        // 1) 결제 검증 단계 (/api/orders/pay)
-        // ─────────────────────────────
+        // --------------------------------
+        // 1️⃣ 결제 검증 단계 (/api/orders/pay)
+        // --------------------------------
         const payUrl = buildApiUrl("/api/orders/pay");
         const payPayload = {
           orderId: orderIdFromToss,
@@ -65,14 +78,8 @@ export default function PaymentsSuccessPage() {
           amount,
         };
 
-        console.log(
-          "[PaymentsSuccessPage] POST /api/orders/pay url:",
-          payUrl
-        );
-        console.log(
-          "[PaymentsSuccessPage] POST /api/orders/pay payload:",
-          payPayload
-        );
+        console.log("[PaymentsSuccessPage] POST /api/orders/pay URL:", payUrl);
+        console.log("[PaymentsSuccessPage] POST /api/orders/pay Payload:", payPayload);
 
         const payRes = await fetch(payUrl, {
           method: "POST",
@@ -89,29 +96,35 @@ export default function PaymentsSuccessPage() {
 
         if (!payRes.ok) {
           const errorText = await payRes.text();
-          console.log(
-            "[PaymentsSuccessPage] /api/orders/pay error body:",
-            errorText
-          );
-          throw new Error(
-            `결제 검증 요청 실패 (status ${payRes.status})`
-          );
+          console.log("[PaymentsSuccessPage] /api/orders/pay error body:", errorText);
+          throw new Error(`결제 검증 요청 실패 (status ${payRes.status})`);
         }
 
-        const payJson: OrdersPayResponse | any = await payRes.json();
-        console.log(
-          "[PaymentsSuccessPage] /api/orders/pay response json:",
-          payJson
-        );
+        const payJson: OrdersPayResponse = await payRes.json();
+        console.log("[PaymentsSuccessPage] /api/orders/pay raw json:", payJson);
 
-        if (payJson.status !== "DONE") {
+        const payData = payJson.data;
+        if (!payJson.success || !payData) {
+          throw new Error(payJson.error ?? "결제 검증 응답이 올바르지 않습니다.");
+        }
+
+        // ✅ 결제 관련 값 로그 출력
+        console.log("[PaymentsSuccessPage] Parsed payData:", {
+          paymentKey: payData.paymentKey,
+          orderId: payData.orderId,
+          status: payData.status,
+          totalAmount: payData.totalAmount,
+          approvedAt: payData.approvedAt,
+        });
+
+        // ✅ 상태 확인
+        if (payData.status !== "DONE") {
           throw new Error("결제 승인에 실패했습니다.");
         }
 
-        // ─────────────────────────────
-        // 2) 주문 생성 단계 (/api/orders)
-        //    ⚠️ 지금은 아직 백엔드 스펙이랑 맞추는 중
-        // ─────────────────────────────
+        // --------------------------------
+        // 2️⃣ 주문 생성 단계 (/api/orders)
+        // --------------------------------
         const cartItems: any[] = []; // TODO
         const addressId = 0; // TODO
         const customsCode = ""; // TODO
@@ -122,22 +135,16 @@ export default function PaymentsSuccessPage() {
           addressId,
           customsCode,
           paymentInfo: {
-            paymentId: payJson.paymentId,
-            status: payJson.status,
-            paidAt: payJson.paidAt,
+            paymentId: payData.orderId,
+            status: payData.status,
+            paidAt: payData.approvedAt,
             method: "TOSS_PAY",
-            amount,
+            amount: payData.totalAmount,
           },
         };
 
-        console.log(
-          "[PaymentsSuccessPage] POST /api/orders url:",
-          orderUrl
-        );
-        console.log(
-          "[PaymentsSuccessPage] POST /api/orders payload:",
-          orderPayload
-        );
+        console.log("[PaymentsSuccessPage] POST /api/orders URL:", orderUrl);
+        console.log("[PaymentsSuccessPage] POST /api/orders Payload:", orderPayload);
 
         const orderRes = await fetch(orderUrl, {
           method: "POST",
@@ -154,24 +161,15 @@ export default function PaymentsSuccessPage() {
 
         if (!orderRes.ok) {
           const errorText = await orderRes.text();
-          console.log(
-            "[PaymentsSuccessPage] /api/orders error body:",
-            errorText
-          );
-          throw new Error(
-            `주문 생성 요청 실패 (status ${orderRes.status})`
-          );
+          console.log("[PaymentsSuccessPage] /api/orders error body:", errorText);
+          throw new Error(`주문 생성 요청 실패 (status ${orderRes.status})`);
         }
 
         const orderJson: CreateOrderResponse | any = await orderRes.json();
-        console.log(
-          "[PaymentsSuccessPage] /api/orders response json:",
-          orderJson
-        );
+        console.log("[PaymentsSuccessPage] /api/orders response json:", orderJson);
 
         const finalOrderId =
-          (orderJson && (orderJson.orderId ?? orderJson.orderNumber)) ||
-          null;
+          (orderJson && (orderJson.orderId ?? orderJson.orderNumber)) || null;
 
         console.log(
           "[PaymentsSuccessPage] finalOrderId used for navigation:",
@@ -182,11 +180,12 @@ export default function PaymentsSuccessPage() {
           throw new Error("주문 번호를 가져오지 못했습니다.");
         }
 
+        // --------------------------------
+        // 3️⃣ 주문 완료 페이지 이동
+        // --------------------------------
         navigate("/order-complete", {
           replace: true,
-          state: {
-            orderId: finalOrderId,
-          },
+          state: { orderId: finalOrderId },
         });
       } catch (e) {
         console.error("[PaymentsSuccessPage] error in run():", e);
@@ -199,6 +198,9 @@ export default function PaymentsSuccessPage() {
     run();
   }, [location.search, navigate]);
 
+  // -----------------------------
+  // ✅ UI
+  // -----------------------------
   return (
     <motion.main
       key="payments-success"
