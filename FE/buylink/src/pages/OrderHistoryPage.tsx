@@ -132,6 +132,8 @@ export default function OrderHistoryPage() {
         error: string | null;
       };
 
+      console.log("🔥 백엔드 응답:", json);
+
       if (!json.success || !json.data) {
         throw new Error(json.error ?? "주문 정보를 찾을 수 없습니다.");
       }
