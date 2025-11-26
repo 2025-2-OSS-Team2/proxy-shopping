@@ -49,6 +49,7 @@ export default function CartPage() {
   const [insurance, setInsurance] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
 
+  // 🔹 선택된 상품만 필터링
   const selectedItems = items.filter((i) => i.selected);
 
   // --------------------------------------------------------
@@ -176,6 +177,7 @@ export default function CartPage() {
       return;
     }
 
+    // TODO: 나중에 선택된 상품 id를 state나 query로 넘겨도 됨
     navigate("/checkout");
   };
 
@@ -190,7 +192,9 @@ export default function CartPage() {
       transition={{ duration: 0.3 }}
       className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 lg:py-12 bg-white"
     >
-      <h1 className="text-2xl lg:text-3xl font-bold text-[#111111] mb-6">장바구니</h1>
+      <h1 className="text-2xl lg:text-3xl font-bold text-[#111111] mb-6">
+        장바구니
+      </h1>
 
       <div className="grid lg:grid-cols-3 gap-6 lg:gap-8">
         {/* 왼쪽: 상품 리스트 */}
@@ -265,7 +269,9 @@ export default function CartPage() {
                   {/* 수량 */}
                   <div className="bg-[#f7f7fb] rounded-lg p-3">
                     <p className="text-sm text-[#505050]">
-                      <span className="font-semibold text-[#111111]">수량: </span>
+                      <span className="font-semibold text-[#111111]">
+                        수량:{" "}
+                      </span>
                       {item.quantity}개
                     </p>
                   </div>
@@ -415,6 +421,7 @@ export default function CartPage() {
           <CartQuotation
             extraPackaging={extraPackaging}
             insurance={insurance}
+            selectedItems={selectedItems} // 🔥 선택된 상품들 전달
             onCheckout={handleGoCheckoutPage}
           />
         </div>
