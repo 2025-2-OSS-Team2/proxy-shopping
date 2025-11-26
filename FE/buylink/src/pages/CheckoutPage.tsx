@@ -611,6 +611,9 @@ function AddressModal({
 
       if (json.success && json.data) {
         onSaved(json.data);
+
+        // ✅ addressId를 localStorage에 저장
+  window.localStorage.setItem("buylink_addressId", String(json.data.id));
       } else {
         alert(json.error ?? "배송지 등록에 실패했습니다.");
       }
@@ -764,6 +767,7 @@ function CustomsCodeModal({
 
       if (json.isValid) {
         onVerified({ code: trimmed, name: json.name });
+        window.localStorage.setItem("buylink_customsCode", trimmed);
       } else {
         alert("올바르지 않은 번호입니다. 다시 확인해주세요.");
       }
