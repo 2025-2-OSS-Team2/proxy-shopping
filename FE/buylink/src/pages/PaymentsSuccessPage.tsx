@@ -61,10 +61,9 @@ export default function PaymentsSuccessPage() {
           headers: { "Content-Type": "application/json" },
           credentials: "include",
           body: JSON.stringify({
-            orderId: orderIdFromToss, // ↔ Checkout에서 넘긴 ORDER-xxxx 그대로
-            method: "TOSS_PAY",
-            amount,
-            paymentKey,
+            orderId: orderIdFromToss, 
+            paymentKey,              // 중요!!!
+            amount                   // 중요!!!
           }),
         });
 
