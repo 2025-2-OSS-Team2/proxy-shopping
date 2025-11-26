@@ -1,22 +1,9 @@
-// src/pages/PaymentsSuccessPage.tsx
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { motion } from "motion/react";
 
 // -----------------------------
 // ✅ 결제 검증 응답 타입 (/api/orders/pay)
-//   /api/orders/pay 응답 예시:
-//   {
-//     "success": true,
-//     "data": {
-//       "paymentKey": "...",
-//       "orderId": "ORDER-...",
-//       "status": "DONE",
-//       "totalAmount": 127888,
-//       "approvedAt": "2025-11-26T19:40:06+09:00"
-//     },
-//     "error": null
-//   }
 // -----------------------------
 type OrdersPayResponseData = {
   paymentKey: string;
@@ -34,39 +21,11 @@ type OrdersPayResponse = {
 
 // -----------------------------
 // ✅ 주문 생성 응답 타입 (/api/orders)
-//   /api/orders 응답 예시:
-//   {
-//     "success": true,
-//     "data": {
-//       "orderId": "202511251202477346",
-//       "receiver": "홍길동",
-//       "paymentMethod": null,
-//       "totalAmount": 130150,
-//       "items": [ ... ]
-//     },
-//     "error": null
-//   }
 // -----------------------------
-type OrderItemResponse = {
-  id: number;
-  productName: string;
-  price: number;
-  quantity: number;
-  imageUrl: string;
-};
-
-type CreateOrderData = {
-  orderId: string;
-  receiver: string;
-  paymentMethod: string | null;
-  totalAmount: number;
-  items: OrderItemResponse[];
-};
-
 type CreateOrderResponse = {
-  success: boolean;
-  data: CreateOrderData | null;
-  error: string | null;
+  orderId: number;
+  totalAmount: number;
+  status: "PAID" | "PENDING" | "CANCELLED";
 };
 
 // -----------------------------
@@ -120,10 +79,7 @@ export default function PaymentsSuccessPage() {
         };
 
         console.log("[PaymentsSuccessPage] POST /api/orders/pay URL:", payUrl);
-        console.log(
-          "[PaymentsSuccessPage] POST /api/orders/pay Payload:",
-          payPayload
-        );
+        console.log("[PaymentsSuccessPage] POST /api/orders/pay Payload:", payPayload);
 
         const payRes = await fetch(payUrl, {
           method: "POST",
@@ -140,10 +96,7 @@ export default function PaymentsSuccessPage() {
 
         if (!payRes.ok) {
           const errorText = await payRes.text();
-          console.log(
-            "[PaymentsSuccessPage] /api/orders/pay error body:",
-            errorText
-          );
+          console.log("[PaymentsSuccessPage] /api/orders/pay error body:", errorText);
           throw new Error(`결제 검증 요청 실패 (status ${payRes.status})`);
         }
 
@@ -164,42 +117,34 @@ export default function PaymentsSuccessPage() {
           approvedAt: payData.approvedAt,
         });
 
+        // ✅ 상태 확인
         if (payData.status !== "DONE") {
           throw new Error("결제 승인에 실패했습니다.");
         }
 
         // --------------------------------
         // 2️⃣ 주문 생성 단계 (/api/orders)
-        //   👉 명세서대로 receiver, totalAmount, items 만 보냄
         // --------------------------------
-
-        // ⚠️ 지금은 예시 데이터로 채워둔 상태
-        //    나중에는 CheckoutPage / 장바구니 상태에서 실제 값 가져오기
-        const receiver = "홍길동"; // TODO: 실제 배송지 수령인으로 교체
-        const totalAmountForOrder = payData.totalAmount;
-
-        const items: OrderItemResponse[] = [
-          {
-            id: 1,
-            productName: "상품명", // TODO: 실제 장바구니 상품명으로 교체
-            price: payData.totalAmount,
-            quantity: 1,
-            imageUrl: "https://example.com/image.jpg", // TODO: 실제 상품 이미지로 교체
-          },
-        ];
+        const cartItems: any[] = []; // TODO
+        const addressId = 0; // TODO
+        const customsCode = ""; // TODO
 
         const orderUrl = buildApiUrl("/api/orders");
         const orderPayload = {
-          receiver,
-          totalAmount: totalAmountForOrder,
-          items,
+          cartItems,
+          addressId,
+          customsCode,
+          paymentInfo: {
+            paymentId: payData.orderId,
+            status: payData.status,
+            paidAt: payData.approvedAt,
+            method: "TOSS_PAY",
+            amount: payData.totalAmount,
+          },
         };
 
         console.log("[PaymentsSuccessPage] POST /api/orders URL:", orderUrl);
-        console.log(
-          "[PaymentsSuccessPage] POST /api/orders Payload:",
-          orderPayload
-        );
+        console.log("[PaymentsSuccessPage] POST /api/orders Payload:", orderPayload);
 
         const orderRes = await fetch(orderUrl, {
           method: "POST",
@@ -216,24 +161,16 @@ export default function PaymentsSuccessPage() {
 
         if (!orderRes.ok) {
           const errorText = await orderRes.text();
-          console.log(
-            "[PaymentsSuccessPage] /api/orders error body:",
-            errorText
-          );
+          console.log("[PaymentsSuccessPage] /api/orders error body:", errorText);
           throw new Error(`주문 생성 요청 실패 (status ${orderRes.status})`);
         }
 
-        const orderJson: CreateOrderResponse = await orderRes.json();
-        console.log(
-          "[PaymentsSuccessPage] /api/orders response json:",
-          orderJson
-        );
+        const orderJson: CreateOrderResponse | any = await orderRes.json();
+        console.log("[PaymentsSuccessPage] /api/orders response json:", orderJson);
 
-        if (!orderJson.success || !orderJson.data) {
-          throw new Error(orderJson.error ?? "주문 생성 응답이 올바르지 않습니다.");
-        }
+        const finalOrderId =
+          (orderJson && (orderJson.orderId ?? orderJson.orderNumber)) || null;
 
-        const finalOrderId = orderJson.data.orderId;
         console.log(
           "[PaymentsSuccessPage] finalOrderId used for navigation:",
           finalOrderId
