@@ -11,6 +11,7 @@ type OrdersPayResponse = {
 };
 
 // 주문 생성 응답 타입 (/api/orders)
+// ⚠️ 실제 백엔드 스펙이랑 다를 수 있음 (지금은 일단 그대로 둠)
 type CreateOrderResponse = {
   orderId: number;
   totalAmount: number;
@@ -37,6 +38,12 @@ export default function PaymentsSuccessPage() {
     const orderIdFromToss = qs.get("orderId"); // Checkout에서 넘긴 orderId
     const amountStr = qs.get("amount");
 
+    console.log("[PaymentsSuccessPage] query params:", {
+      paymentKey,
+      orderIdFromToss,
+      amountStr,
+    });
+
     if (!paymentKey || !orderIdFromToss || !amountStr) {
       setErrorMsg("필수 결제 정보가 누락되었습니다.");
       setIsProcessing(false);
@@ -44,34 +51,58 @@ export default function PaymentsSuccessPage() {
     }
 
     const amount = Number(amountStr);
+    console.log("[PaymentsSuccessPage] parsed amount:", amount);
 
     const run = async () => {
       try {
         // ─────────────────────────────
         // 1) 결제 검증 단계 (/api/orders/pay)
-        //    - Toss에서 넘겨준 orderId 그대로 string으로 전달
-        //    - paymentKey도 함께 보내서 백엔드에서 Toss confirm 호출할 수 있게
         // ─────────────────────────────
-
         const payUrl = buildApiUrl("/api/orders/pay");
-        console.log("[PaymentsSuccessPage] POST /api/orders/pay:", payUrl);
+        const payPayload = {
+          orderId: orderIdFromToss,
+          paymentKey,
+          amount,
+        };
+
+        console.log(
+          "[PaymentsSuccessPage] POST /api/orders/pay url:",
+          payUrl
+        );
+        console.log(
+          "[PaymentsSuccessPage] POST /api/orders/pay payload:",
+          payPayload
+        );
 
         const payRes = await fetch(payUrl, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
-          body: JSON.stringify({
-            orderId: orderIdFromToss, 
-            paymentKey,              // 중요!!!
-            amount                   // 중요!!!
-          }),
+          body: JSON.stringify(payPayload),
         });
 
+        console.log(
+          "[PaymentsSuccessPage] /api/orders/pay status:",
+          payRes.status,
+          payRes.statusText
+        );
+
         if (!payRes.ok) {
-          throw new Error("결제 검증 요청 실패");
+          const errorText = await payRes.text();
+          console.log(
+            "[PaymentsSuccessPage] /api/orders/pay error body:",
+            errorText
+          );
+          throw new Error(
+            `결제 검증 요청 실패 (status ${payRes.status})`
+          );
         }
 
-        const payJson: OrdersPayResponse = await payRes.json();
+        const payJson: OrdersPayResponse | any = await payRes.json();
+        console.log(
+          "[PaymentsSuccessPage] /api/orders/pay response json:",
+          payJson
+        );
 
         if (payJson.status !== "SUCCESS") {
           throw new Error("결제 승인에 실패했습니다.");
@@ -79,46 +110,77 @@ export default function PaymentsSuccessPage() {
 
         // ─────────────────────────────
         // 2) 주문 생성 단계 (/api/orders)
-        //    cartItems / addressId / customsCode 는
-        //    실제론 장바구니·체크아웃 상태에서 가져와야 함.
-        //    지금은 TODO 그대로 두고, 백엔드 스펙에 맞춰 채워넣으면 됨.
+        //    ⚠️ 지금은 아직 백엔드 스펙이랑 맞추는 중
         // ─────────────────────────────
-
-        const cartItems: any[] = []; // TODO: 전역 상태(장바구니)에서 실제 아이템 목록 가져오기
-        const addressId = 0; // TODO: CheckoutPage에서 선택한 주소 id
-        const customsCode = ""; // TODO: CheckoutPage에서 입력한 개인통관고유번호
+        const cartItems: any[] = []; // TODO
+        const addressId = 0; // TODO
+        const customsCode = ""; // TODO
 
         const orderUrl = buildApiUrl("/api/orders");
-        console.log("[PaymentsSuccessPage] POST /api/orders:", orderUrl);
+        const orderPayload = {
+          cartItems,
+          addressId,
+          customsCode,
+          paymentInfo: {
+            paymentId: payJson.paymentId,
+            status: payJson.status,
+            paidAt: payJson.paidAt,
+            method: "TOSS_PAY",
+            amount,
+          },
+        };
+
+        console.log(
+          "[PaymentsSuccessPage] POST /api/orders url:",
+          orderUrl
+        );
+        console.log(
+          "[PaymentsSuccessPage] POST /api/orders payload:",
+          orderPayload
+        );
 
         const orderRes = await fetch(orderUrl, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
-          body: JSON.stringify({
-            cartItems,
-            addressId,
-            customsCode,
-            paymentInfo: {
-              paymentId: payJson.paymentId,
-              status: payJson.status,
-              paidAt: payJson.paidAt,
-              method: "TOSS_PAY",
-              amount,
-            },
-          }),
+          body: JSON.stringify(orderPayload),
         });
 
+        console.log(
+          "[PaymentsSuccessPage] /api/orders status:",
+          orderRes.status,
+          orderRes.statusText
+        );
+
         if (!orderRes.ok) {
-          throw new Error("주문 생성 요청 실패");
+          const errorText = await orderRes.text();
+          console.log(
+            "[PaymentsSuccessPage] /api/orders error body:",
+            errorText
+          );
+          throw new Error(
+            `주문 생성 요청 실패 (status ${orderRes.status})`
+          );
         }
 
-        const orderJson: CreateOrderResponse = await orderRes.json();
+        const orderJson: CreateOrderResponse | any = await orderRes.json();
+        console.log(
+          "[PaymentsSuccessPage] /api/orders response json:",
+          orderJson
+        );
 
-        // ─────────────────────────────
-        // 3) 주문완료 페이지로 이동
-        // ─────────────────────────────
-        const finalOrderId = orderJson.orderId;
+        const finalOrderId =
+          (orderJson && (orderJson.orderId ?? orderJson.orderNumber)) ||
+          null;
+
+        console.log(
+          "[PaymentsSuccessPage] finalOrderId used for navigation:",
+          finalOrderId
+        );
+
+        if (!finalOrderId) {
+          throw new Error("주문 번호를 가져오지 못했습니다.");
+        }
 
         navigate("/order-complete", {
           replace: true,
@@ -127,7 +189,7 @@ export default function PaymentsSuccessPage() {
           },
         });
       } catch (e) {
-        console.error(e);
+        console.error("[PaymentsSuccessPage] error in run():", e);
         setErrorMsg(e instanceof Error ? e.message : String(e));
       } finally {
         setIsProcessing(false);
