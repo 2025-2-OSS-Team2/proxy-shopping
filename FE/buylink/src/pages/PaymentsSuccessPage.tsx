@@ -6,7 +6,7 @@ import { motion } from "motion/react";
 // 결제 검증 응답 타입 (/api/orders/pay)
 type OrdersPayResponse = {
   paymentId: string;
-  status: "SUCCESS" | "FAIL";
+  status: "DONE" | "FAIL";
   paidAt?: string;
 };
 
@@ -104,7 +104,7 @@ export default function PaymentsSuccessPage() {
           payJson
         );
 
-        if (payJson.status !== "SUCCESS") {
+        if (payJson.status !== "DONE") {
           throw new Error("결제 승인에 실패했습니다.");
         }
 
