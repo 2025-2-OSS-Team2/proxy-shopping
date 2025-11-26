@@ -4,19 +4,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { motion } from "motion/react";
 
 // -----------------------------
-// ✅ /api/orders/pay 응답 타입
-//   예시:
-//   {
-//     "success": true,
-//     "data": {
-//       "paymentKey": "...",
-//       "orderId": "ORDER-...",
-//       "status": "DONE",
-//       "totalAmount": 127888,
-//       "approvedAt": "2025-11-26T19:40:06+09:00"
-//     },
-//     "error": null
-//   }
+// ✅ 결제 검증 응답 타입 (/api/orders/pay)
 // -----------------------------
 type OrdersPayResponseData = {
   paymentKey: string;
@@ -33,100 +21,33 @@ type OrdersPayResponse = {
 };
 
 // -----------------------------
-// ✅ /api/cart GET 응답 타입
-//   (CartPage / CheckoutPage와 동일 스펙)
-// -----------------------------
-type CartApiItem = {
-  id: number;
-  productName: string;
-  priceKRW: number;
-  imageUrl: string;
-  aiWeightKg: number;
-  aiVolumeM3: number;
-};
-
-type CartApiGetResponse = {
-  success: boolean;
-  data: {
-    items: CartApiItem[];
-    totalKRW: number;
-  } | null;
-  error: string | null;
-};
-
-// -----------------------------
-// ✅ /api/orders/address 응답 타입
-//   CheckoutPage에서 사용한 SavedAddress와 동일 구조
-// -----------------------------
-type SavedAddress = {
-  id: number;
-  receiverName: string;
-  phone: string;
-  postalCode: string;
-  roadAddress: string;
-  detailAddress: string;
-  deliveryRequest: string;
-};
-
-type OrdersAddressApiResponse = {
-  success: boolean;
-  data: SavedAddress | null;
-  error: string | null;
-};
-
-// -----------------------------
-// ✅ /api/orders 요청/응답 타입
-//   명세서 예시:
-//
-//   요청:
+// ✅ 주문 생성 응답 타입 (/api/orders)
+//   POST /api/orders
 //   {
-//     "receiver": "홍길동",
-//     "totalAmount": 130150,
-//     "items": [
-//       {
-//         "id": 1,
-//         "productName": "상품명",
-//         "price": 130150,
-//         "quantity": 1,
-//         "imageUrl": "https://example.com/image.jpg"
-//       }
-//     ]
+//     "addressId": 10,
+//     "customsCode": "P123456789012",
+//     "totalAmount": 27900
 //   }
-//
-//   응답:
+//   =>
 //   {
 //     "success": true,
 //     "data": {
-//       "orderId": "202511251202477346",
-//       "receiver": "홍길동",
-//       "paymentMethod": null,
-//       "totalAmount": 130150,
-//       "items": [ ... ]
+//       "orderNumber": "20251126183012",
+//       "totalAmount": 27900,
+//       "status": "PENDING"
 //     },
 //     "error": null
 //   }
 // -----------------------------
-type OrderItemRequest = {
-  id: number;
-  productName: string;
-  price: number;
-  quantity: number;
-  imageUrl: string;
-};
-
-type OrderItemResponse = OrderItemRequest;
-
-type CreateOrderData = {
-  orderId: string;
-  receiver: string;
-  paymentMethod: string | null;
+type CreateOrderResponseData = {
+  orderNumber: string;
   totalAmount: number;
-  items: OrderItemResponse[];
+  status: "PENDING" | "PAID" | "CANCELLED";
 };
 
 type CreateOrderResponse = {
   success: boolean;
-  data: CreateOrderData | null;
+  data: CreateOrderResponseData | null;
   error: string | null;
 };
 
@@ -136,6 +57,10 @@ type CreateOrderResponse = {
 const API_BASE_URL =
   import.meta.env.DEV ? import.meta.env.VITE_API_BASE_URL ?? "" : "";
 const buildApiUrl = (path: string) => `${API_BASE_URL}${path}`;
+
+// 🔹 localStorage 키
+const ADDRESS_ID_KEY = "buylink_addressId";
+const CUSTOMS_CODE_KEY = "buylink_customsCode";
 
 // -----------------------------
 // ✅ 컴포넌트 본문
@@ -180,7 +105,10 @@ export default function PaymentsSuccessPage() {
           amount,
         };
 
-        console.log("[PaymentsSuccessPage] POST /api/orders/pay URL:", payUrl);
+        console.log(
+          "[PaymentsSuccessPage] POST /api/orders/pay URL:",
+          payUrl
+        );
         console.log(
           "[PaymentsSuccessPage] POST /api/orders/pay Payload:",
           payPayload
@@ -209,13 +137,19 @@ export default function PaymentsSuccessPage() {
         }
 
         const payJson: OrdersPayResponse = await payRes.json();
-        console.log("[PaymentsSuccessPage] /api/orders/pay raw json:", payJson);
+        console.log(
+          "[PaymentsSuccessPage] /api/orders/pay raw json:",
+          payJson
+        );
 
         const payData = payJson.data;
         if (!payJson.success || !payData) {
-          throw new Error(payJson.error ?? "결제 검증 응답이 올바르지 않습니다.");
+          throw new Error(
+            payJson.error ?? "결제 검증 응답이 올바르지 않습니다."
+          );
         }
 
+        // ✅ 결제 관련 값 로그 출력
         console.log("[PaymentsSuccessPage] Parsed payData:", {
           paymentKey: payData.paymentKey,
           orderId: payData.orderId,
@@ -229,137 +163,53 @@ export default function PaymentsSuccessPage() {
         }
 
         // --------------------------------
-        // 2️⃣ 장바구니 조회 (/api/cart)
-        //    → 주문 생성에 사용할 items / 금액
+        // 2️⃣ 주문 생성 단계 (/api/orders)
+        //    새 명세:
+        //    body: { addressId, customsCode, totalAmount }
         // --------------------------------
-        const cartUrl = buildApiUrl("/api/cart");
-        console.log("[PaymentsSuccessPage] GET /api/cart URL:", cartUrl);
 
-        const cartRes = await fetch(cartUrl, {
-          method: "GET",
-          credentials: "include",
+        // 🔹 Checkout 단계에서 저장해 둔 addressId / customsCode 읽기
+        const addressIdStr =
+          typeof window !== "undefined"
+            ? window.localStorage.getItem(ADDRESS_ID_KEY)
+            : null;
+        const customsCode =
+          typeof window !== "undefined"
+            ? window.localStorage.getItem(CUSTOMS_CODE_KEY)
+            : null;
+
+        console.log("[PaymentsSuccessPage] loaded from localStorage:", {
+          addressIdStr,
+          customsCode,
         });
 
-        console.log(
-          "[PaymentsSuccessPage] /api/cart status:",
-          cartRes.status,
-          cartRes.statusText
-        );
-
-        if (!cartRes.ok) {
-          const errorText = await cartRes.text();
-          console.log(
-            "[PaymentsSuccessPage] /api/cart error body:",
-            errorText
-          );
-          throw new Error(`장바구니 조회 실패 (status ${cartRes.status})`);
-        }
-
-        const cartJson: CartApiGetResponse = await cartRes.json();
-        console.log("[PaymentsSuccessPage] /api/cart response json:", cartJson);
-
-        if (!cartJson.success || !cartJson.data) {
-          throw new Error(cartJson.error ?? "장바구니 데이터가 없습니다.");
-        }
-
-        const items: OrderItemRequest[] = cartJson.data.items.map((item) => ({
-          id: item.id,
-          productName: item.productName,
-          price: item.priceKRW,
-          quantity: 1, // 현재 BK에서 quantity 안 주니까 1 고정
-          imageUrl: item.imageUrl,
-        }));
-
-        const productTotal = items.reduce(
-          (sum, it) => sum + it.price * it.quantity,
-          0
-        );
-
-        console.log("[PaymentsSuccessPage] mapped order items:", items);
-        console.log(
-          "[PaymentsSuccessPage] productTotal from cart items:",
-          productTotal
-        );
-        console.log(
-          "[PaymentsSuccessPage] totalAmount from payData:",
-          payData.totalAmount
-        );
-
-        // --------------------------------
-        // 3️⃣ 배송지 조회 (/api/orders/address)
-        //    → receiverName 가져오기
-        // --------------------------------
-        const addressUrl = buildApiUrl("/api/orders/address");
-        console.log(
-          "[PaymentsSuccessPage] GET /api/orders/address URL:",
-          addressUrl
-        );
-
-        let receiverName = "홍길동"; // 디폴트 (혹시 주소 없을 때 대비용)
-
-        try {
-          const addrRes = await fetch(addressUrl, {
-            method: "GET",
-            credentials: "include",
-          });
-
-          console.log(
-            "[PaymentsSuccessPage] /api/orders/address status:",
-            addrRes.status,
-            addrRes.statusText
-          );
-
-          if (addrRes.ok) {
-            const addrJson: OrdersAddressApiResponse = await addrRes.json();
-            console.log(
-              "[PaymentsSuccessPage] /api/orders/address response json:",
-              addrJson
-            );
-
-            if (addrJson.success && addrJson.data) {
-              receiverName = addrJson.data.receiverName;
-            } else {
-              console.log(
-                "[PaymentsSuccessPage] /api/orders/address no data, fallback receiverName:",
-                receiverName
-              );
-            }
-          } else {
-            const errorText = await addrRes.text();
-            console.log(
-              "[PaymentsSuccessPage] /api/orders/address error body:",
-              errorText
-            );
-          }
-        } catch (addrError) {
-          console.log(
-            "[PaymentsSuccessPage] /api/orders/address fetch error, fallback receiverName:",
-            receiverName,
-            addrError
+        if (!addressIdStr || !customsCode) {
+          throw new Error(
+            "배송지 또는 개인통관고유번호 정보가 없습니다. 다시 주문을 진행해 주세요."
           );
         }
 
-        console.log(
-          "[PaymentsSuccessPage] final receiverName for order:",
-          receiverName
-        );
+        const addressId = Number(addressIdStr);
+        if (Number.isNaN(addressId) || addressId <= 0) {
+          throw new Error(
+            "주소 ID가 올바르지 않습니다. 배송지를 다시 등록해 주세요."
+          );
+        }
 
-        // --------------------------------
-        // 4️⃣ 주문 생성 단계 (/api/orders)
-        //    → 명세서대로 receiver / totalAmount / items 전송
-        // --------------------------------
+        // 🔹 Toss 검증 금액으로 totalAmount 사용
+        const totalAmountForOrder = payData.totalAmount ?? amount;
+
         const orderUrl = buildApiUrl("/api/orders");
-
-        // Toss 검증 금액이 있으면 그걸 우선 사용
-        const totalAmountForOrder = payData.totalAmount ?? productTotal;
-
         const orderPayload = {
-          receiver: receiverName,
+          addressId,
+          customsCode,
           totalAmount: totalAmountForOrder,
-          items,
         };
 
-        console.log("[PaymentsSuccessPage] POST /api/orders URL:", orderUrl);
+        console.log(
+          "[PaymentsSuccessPage] POST /api/orders URL:",
+          orderUrl
+        );
         console.log(
           "[PaymentsSuccessPage] POST /api/orders Payload:",
           orderPayload
@@ -394,25 +244,27 @@ export default function PaymentsSuccessPage() {
         );
 
         if (!orderJson.success || !orderJson.data) {
-          throw new Error(orderJson.error ?? "주문 생성 응답이 올바르지 않습니다.");
+          throw new Error(
+            orderJson.error ?? "주문 생성 응답이 올바르지 않습니다."
+          );
         }
 
-        const finalOrderId = orderJson.data.orderId;
+        const finalOrderNumber = orderJson.data.orderNumber;
         console.log(
-          "[PaymentsSuccessPage] finalOrderId used for navigation:",
-          finalOrderId
+          "[PaymentsSuccessPage] finalOrderNumber used for navigation:",
+          finalOrderNumber
         );
 
-        if (!finalOrderId) {
+        if (!finalOrderNumber) {
           throw new Error("주문 번호를 가져오지 못했습니다.");
         }
 
         // --------------------------------
-        // 5️⃣ 주문 완료 페이지 이동
+        // 3️⃣ 주문 완료 페이지 이동
         // --------------------------------
         navigate("/order-complete", {
           replace: true,
-          state: { orderId: finalOrderId },
+          state: { orderId: finalOrderNumber },
         });
       } catch (e) {
         console.error("[PaymentsSuccessPage] error in run():", e);
