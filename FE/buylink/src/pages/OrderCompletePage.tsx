@@ -309,7 +309,6 @@ export default function OrderCompletePage() {
             </div>
           </section>
 
-          {/* 결제 수단 */}
           <section className="bg-white rounded-2xl shadow p-6 border border-gray-200 text-sm">
             <h2 className="text-lg font-semibold text-[#111111] mb-2">
               결제 수단
