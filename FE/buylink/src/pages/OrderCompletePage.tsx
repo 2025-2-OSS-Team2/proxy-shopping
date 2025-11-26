@@ -10,7 +10,7 @@ import sampleimg from "../assets/cuteeeee.png";
 type OrderItem = {
   id: number;
   productName: string;
-  price: number; // backend: price
+  price: number;
   quantity: number;
   imageUrl?: string;
 };
@@ -21,13 +21,19 @@ type ShippingInfo = {
 };
 
 type OrderDetail = {
-  orderId: string; // "20251126183012" 같은 문자열
+  orderId: string;
   receiver: string;
+  phone: string;                // 추가
+  postalCode: string;           // 추가
+  roadAddress: string;          // 추가
+  detailAddress: string;        // 추가
+  deliveryRequest?: string;     // 추가
   paymentMethod: string | null;
   totalAmount: number;
   items: OrderItem[];
   shipping: ShippingInfo;
 };
+
 
 // 🔹 GET /api/orders/{orderId} 응답 타입
 type OrderDetailApiResponse = {
@@ -265,10 +271,17 @@ export default function OrderCompletePage() {
 
           {/* 배송지 (명세상 address/phone은 없어서 receiver만 표시) */}
           <section className="bg-white rounded-2xl shadow p-6 border border-gray-200 text-sm space-y-1">
-            <h2 className="mb-3 text-lg font-semibold text-[#111111]">
-              배송지
-            </h2>
+            <h2 className="mb-3 text-lg font-semibold text-[#111111]">배송지</h2>
+
             <p>받는 분: {order.receiver}</p>
+            <p>연락처: {order.phone}</p>
+            <p>
+              주소: ({order.postalCode}) {order.roadAddress} {order.detailAddress}
+            </p>
+
+            {order.deliveryRequest && (
+              <p>요청사항: {order.deliveryRequest}</p>
+            )}
           </section>
 
           {/* 구매대행 상품 */}
