@@ -729,7 +729,6 @@ function AddressModal({
 
         <input
           value={detailAddress}
-          readOnly
           placeholder="상세 주소"
           className="w-full border rounded-lg px-4 py-2 text-sm"
         />

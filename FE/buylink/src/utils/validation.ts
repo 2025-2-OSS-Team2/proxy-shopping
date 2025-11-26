@@ -58,7 +58,7 @@ export function validateAddress(values: AddressFormValues): AddressFormErrors {
 
   // 5) 상세 주소
   if (!values.detailAddress.trim()) {
-    //errors.detailAddress = "상세 주소를 입력해 주세요.";
+    errors.detailAddress = "상세 주소를 입력해 주세요.";
   }
 
   return errors;
