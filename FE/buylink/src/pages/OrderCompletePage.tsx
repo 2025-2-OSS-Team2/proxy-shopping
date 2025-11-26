@@ -5,68 +5,53 @@ import { motion } from "motion/react";
 import sampleimg from "../assets/cuteeeee.png";
 
 // =============================
-// 타입 정의 (백엔드 명세에 맞게)
+// 타입 정의 (백엔드 명세 기반)
 // =============================
 type OrderItem = {
   id: number;
   productName: string;
-  price: number; // ✅ 백엔드의 price 필드
+  price: number; // 🔹 backend: price
   quantity: number;
   imageUrl?: string;
 };
 
-type OrderDetail = {
-  orderId: string; // ✅ 문자열 orderId
-  receiver: string;
-  phone?: string; // ✅ GET /api/orders/{orderId} 응답의 phone
-  totalAmount: number;
-  items: OrderItem[];
-  // 아래 필드는 백엔드 명세에는 없지만, 나중에 확장될 가능성 고려해서 optional
-  paymentMethod?: string | null;
-  address?: string;
-  createdAt?: string;
+type ShippingInfo = {
+  domestic: number;
+  international: number;
 };
 
-// 🔹 GET /api/orders/{orderId} 응답 래퍼 타입
+type OrderDetail = {
+  orderId: string; // 🔹 "20251126183012" 같은 문자열
+  receiver: string;
+  paymentMethod: string | null;
+  totalAmount: number;
+  items: OrderItem[];
+  shipping: ShippingInfo;
+  // createdAt, address, phone 등은 명세에 없음 → 필요하면 나중에 추가
+};
+
+// 🔹 GET /api/orders/{orderId} 응답 타입
 type OrderDetailApiResponse = {
   success: boolean;
-  data: {
-    orderId: string;
-    receiver: string;
-    phone?: string;
-    totalAmount: number;
-    items: {
-      id: number;
-      productName: string;
-      price: number;
-      quantity: number;
-      imageUrl: string;
-    }[];
-    // paymentMethod / address / createdAt 등이 있다면 여기에 추가 가능
-  } | null;
+  data: OrderDetail | null;
   error: string | null;
 };
 
-// 🔹 DEV/PROD 공통 API base URL
+// =============================
+// 공통 API Base URL
+// =============================
 const API_BASE_URL =
   import.meta.env.DEV ? import.meta.env.VITE_API_BASE_URL ?? "" : "";
-
 const buildApiUrl = (path: string) => `${API_BASE_URL}${path}`;
+
+// 🔹 localStorage 키 (Checkout/AddressModal에서 저장했다고 가정)
+const RECEIVER_NAME_KEY = "buylink_receiverName";
+const RECEIVER_PHONE_KEY = "buylink_receiverPhone";
 
 // =============================
 // 유틸 함수
 // =============================
 const formatKRW = (v: number) => `${v.toLocaleString()}원`;
-
-const formatOrderDate = (iso?: string) => {
-  if (!iso) return "";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "";
-  const yy = String(d.getFullYear()).slice(-2);
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  return `${yy}.${mm}.${dd}`;
-};
 
 // =============================
 // 메인 컴포넌트
@@ -76,36 +61,50 @@ export default function OrderCompletePage() {
   const params = useParams<{ orderId?: string }>();
   const location = useLocation();
 
-  // ✅ PaymentsSuccessPage에서 넘겨준 orderId (state 기반)
+  // /order-complete/:orderId or navigate(..., { state: { orderId } })
+  const orderIdFromParams = params.orderId; // string 그대로
   const orderIdFromState =
     (location.state as { orderId?: string } | undefined)?.orderId;
 
-  // ✅ URL 파라미터로 /order-complete/:orderId 형태도 나중에 쓸 수 있게 여유 있게 처리
-  const orderIdFromParams = params.orderId;
-
-  const effectiveOrderId = orderIdFromState ?? orderIdFromParams ?? null;
+  const effectiveOrderId = orderIdFromParams ?? orderIdFromState ?? "";
 
   const [order, setOrder] = useState<OrderDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
-    // 주문번호가 아예 없으면 바로 에러 처리
-    if (!effectiveOrderId) {
-      setLoadError("주문 번호가 전달되지 않았습니다.");
-      setLoading(false);
-      return;
-    }
-
     const fetchOrder = async () => {
       try {
+        if (!effectiveOrderId) {
+          setLoadError("주문 번호가 없습니다. 다시 시도해 주세요.");
+          setLoading(false);
+          return;
+        }
+
         setLoading(true);
         setLoadError(null);
 
-        // ✅ GET /api/orders/{orderId}
-        // 명세: GET /api/orders/{orderId}??receiver={이름}&phone={전화번호}
-        // 일단 orderId만으로 호출하고, receiver/phone 쿼리는 선택적으로 나중에 붙여도 됨
-        const url = buildApiUrl(`/api/orders/${effectiveOrderId}`);
+        // 🔹 localStorage에서 receiver / phone 가져오기
+        const receiverName =
+          typeof window !== "undefined"
+            ? window.localStorage.getItem(RECEIVER_NAME_KEY)
+            : null;
+        const receiverPhone =
+          typeof window !== "undefined"
+            ? window.localStorage.getItem(RECEIVER_PHONE_KEY)
+            : null;
+
+        // 쿼리스트링 구성
+        const searchParams = new URLSearchParams();
+        if (receiverName) searchParams.append("receiver", receiverName);
+        if (receiverPhone) searchParams.append("phone", receiverPhone);
+
+        let url = buildApiUrl(`/api/orders/${effectiveOrderId}`);
+        const qs = searchParams.toString();
+        if (qs) {
+          url += `?${qs}`;
+        }
+
         console.log("[OrderCompletePage] GET /api/orders URL:", url);
 
         const res = await fetch(url, {
@@ -121,43 +120,27 @@ export default function OrderCompletePage() {
 
         if (!res.ok) {
           const text = await res.text();
-          console.log("[OrderCompletePage] /api/orders error body:", text);
+          console.log(
+            "[OrderCompletePage] /api/orders error body:",
+            text
+          );
           throw new Error(`주문 상세 조회 실패 (status ${res.status})`);
         }
 
-        const json = (await res.json()) as OrderDetailApiResponse;
-        console.log("[OrderCompletePage] /api/orders response json:", json);
+        const json: OrderDetailApiResponse = await res.json();
+        console.log(
+          "[OrderCompletePage] /api/orders response json:",
+          json
+        );
 
         if (!json.success || !json.data) {
-          throw new Error(json.error ?? "주문 상세 데이터가 없습니다.");
+          throw new Error(json.error ?? "주문 상세 응답이 올바르지 않습니다.");
         }
 
-        const data = json.data;
-
-        // ✅ 백엔드 응답 -> 화면에서 쓰는 타입으로 매핑
-        const mapped: OrderDetail = {
-          orderId: data.orderId,
-          receiver: data.receiver,
-          phone: data.phone,
-          totalAmount: data.totalAmount,
-          items: data.items.map((item) => ({
-            id: item.id,
-            productName: item.productName,
-            price: item.price,
-            quantity: item.quantity,
-            imageUrl: item.imageUrl,
-          })),
-          // paymentMethod / address / createdAt은 명세에 없으니 일단 비워둠
-        };
-
-        setOrder(mapped);
+        setOrder(json.data);
       } catch (e) {
         console.error("[OrderCompletePage] fetchOrder error:", e);
-        setLoadError(
-          e instanceof Error
-            ? e.message
-            : "주문 정보를 불러오는 중 문제가 발생했습니다."
-        );
+        setLoadError("주문 정보를 불러오는 중 문제가 발생했습니다.");
       } finally {
         setLoading(false);
       }
@@ -204,14 +187,12 @@ export default function OrderCompletePage() {
     );
   }
 
-  // ✅ 합계/할인 계산 (shipping은 명세에 없으니 0 처리)
   const productTotal = order.items.reduce(
     (sum, item) => sum + item.price * item.quantity,
     0
   );
-  const shippingFee = 0;
-  const discount = productTotal + shippingFee - order.totalAmount;
-  const orderDateLabel = formatOrderDate(order.createdAt) || "";
+  const shippingTotal = order.shipping.domestic + order.shipping.international;
+  const discount = productTotal + shippingTotal - order.totalAmount;
 
   return (
     <motion.main
@@ -249,9 +230,7 @@ export default function OrderCompletePage() {
         <div className="space-y-6">
           {/* 주문정보 */}
           <section className="bg-white rounded-2xl shadow p-6 border border-gray-200 text-sm space-y-2">
-            <p className="text-[#767676]">
-              주문 상세 내역 {orderDateLabel && `- ${orderDateLabel}`}
-            </p>
+            <p className="text-[#767676]">주문 상세 내역</p>
 
             <p className="text-lg font-semibold text-[#111111]">
               주문 번호{" "}
@@ -264,14 +243,12 @@ export default function OrderCompletePage() {
             </p>
           </section>
 
-          {/* 배송지 (receiver + phone만 표시) */}
+          {/* 배송지 (명세상 address/phone은 없어서 receiver만 표시) */}
           <section className="bg-white rounded-2xl shadow p-6 border border-gray-200 text-sm space-y-1">
             <h2 className="mb-3 text-lg font-semibold text-[#111111]">
               배송지
             </h2>
             <p>받는 분: {order.receiver}</p>
-            {order.phone && <p>연락처: {order.phone}</p>}
-            {order.address && <p>주소: {order.address}</p>}
           </section>
 
           {/* 구매대행 상품 */}
@@ -312,15 +289,15 @@ export default function OrderCompletePage() {
             </div>
           </section>
 
-          {/* 결제 수단 (명세에 paymentMethod 없어서 있으면만 노출) */}
-          {order.paymentMethod && (
-            <section className="bg-white rounded-2xl shadow p-6 border border-gray-200 text-sm">
-              <h2 className="text-lg font-semibold text-[#111111] mb-2">
-                결제 수단
-              </h2>
-              <p className="text-[#111111]">{order.paymentMethod}</p>
-            </section>
-          )}
+          {/* 결제 수단 */}
+          <section className="bg-white rounded-2xl shadow p-6 border border-gray-200 text-sm">
+            <h2 className="text-lg font-semibold text-[#111111] mb-2">
+              결제 수단
+            </h2>
+            <p className="text-[#111111]">
+              {order.paymentMethod ?? "결제 수단 정보 없음"}
+            </p>
+          </section>
         </div>
 
         {/* RIGHT Summary */}
@@ -348,7 +325,7 @@ export default function OrderCompletePage() {
             <div className="flex justify-between">
               <span className="text-[#505050]">배송비</span>
               <span className="text-[#111111] font-medium">
-                {formatKRW(shippingFee)}
+                {formatKRW(shippingTotal)}
               </span>
             </div>
 
