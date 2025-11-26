@@ -16,12 +16,12 @@ const API_BASE_URL =
 const buildApiUrl = (path: string) => `${API_BASE_URL}${path}`;
 
 // =============================
-// 타입 정의 (OrderCompletePage와 동일)
+// 실제 백엔드 응답에 정확히 맞춘 타입
 // =============================
 type OrderItem = {
   id: number;
   productName: string;
-  priceKRW: number;
+  price: number; // ← priceKRW 아님
   quantity: number;
   imageUrl?: string;
 };
@@ -32,21 +32,29 @@ type ShippingInfo = {
 };
 
 type OrderDetail = {
-  orderId: number;
+  orderId: string; // ← 문자열
   receiver: string;
-  receiverPhone?: string;
-  address?: string;
+  phone: string;
+
+  postalCode: string;
+  roadAddress: string;
+  detailAddress: string;
+  deliveryRequest?: string;
+
   paymentMethod: string;
   totalAmount: number;
+
   items: OrderItem[];
   shipping: ShippingInfo;
+
   createdAt?: string;
 };
 
 // =============================
-// 유틸 함수
+// 유틸
 // =============================
-const formatKRW = (v: number) => `${v.toLocaleString()}원`;
+const formatKRW = (v?: number) =>
+  typeof v === "number" ? `${v.toLocaleString()}원` : "0원";
 
 const formatOrderDate = (iso?: string) => {
   if (!iso) return "";
@@ -72,41 +80,31 @@ export default function OrderHistoryPage() {
   // 🔹 조회 결과 상태
   const [order, setOrder] = useState<OrderDetail | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  // const [loadError, setLoadError] = useState<string | null>(null); // 🔥 사용 안 해서 제거
 
   // =============================
-  // 주문내역 조회 핸들러
+  // 주문내역 조회
   // =============================
   const handleSearch = async () => {
-    // 1) 먼저 값들 trim 해서 폼 값 객체로 만들기
     const values: OrderHistoryFormValues = {
       receiverName: receiverName.trim(),
       phone: phone.trim(),
       orderId: orderIdInput.trim(),
     };
 
-    // 2) 공통 유효성 검사
     const errors = validateOrderHistory(values);
-
     if (hasAnyError(errors)) {
-      const firstError = Object.values(errors).find((msg) => !!msg);
-      if (firstError) {
-        alert(firstError);
-      }
+      alert(Object.values(errors).find((msg) => !!msg));
       return;
     }
 
-    // 3) 유효성 통과한(trim 된) 값 사용
     const trimmedName = values.receiverName;
     const trimmedPhone = values.phone;
     const trimmedOrderId = values.orderId;
 
     try {
       setIsLoading(true);
-      // setLoadError(null);
       setOrder(null);
 
-      // 🔹 이름/전화번호는 인증용으로 쿼리스트링에 같이 전달한다고 가정
       const params = new URLSearchParams({
         receiver: trimmedName,
         phone: trimmedPhone,
@@ -115,6 +113,7 @@ export default function OrderHistoryPage() {
       const url = buildApiUrl(
         `/api/orders/${encodeURIComponent(trimmedOrderId)}?${params.toString()}`
       );
+
       console.log("[OrderHistoryPage] GET:", url);
 
       const res = await fetch(url, {
@@ -122,9 +121,7 @@ export default function OrderHistoryPage() {
         credentials: "include",
       });
 
-      if (!res.ok) {
-        throw new Error("주문 정보를 찾을 수 없습니다.");
-      }
+      if (!res.ok) throw new Error("주문 정보를 찾을 수 없습니다.");
 
       const json = (await res.json()) as {
         success: boolean;
@@ -141,7 +138,6 @@ export default function OrderHistoryPage() {
       setOrder(json.data);
     } catch (e) {
       console.error("[OrderHistoryPage] handleSearch error:", e);
-      // setLoadError("주문 정보를 불러오는 중 문제가 발생했습니다.");
       alert("주문 정보를 찾을 수 없어요. 입력한 정보를 다시 확인해 주세요.");
     } finally {
       setIsLoading(false);
@@ -152,18 +148,20 @@ export default function OrderHistoryPage() {
   const handleRequestMore = () => navigate("/request");
 
   // =============================
-  // 금액 계산 (order 있을 때만)
+  // 금액 계산
   // =============================
   const productTotal =
-    order?.items.reduce(
-      (sum, item) => sum + item.priceKRW * item.quantity,
-      0
-    ) ?? 0;
+    order?.items.reduce((sum, item) => sum + item.price * item.quantity, 0) ??
+    0;
+
   const shippingTotal =
-    (order?.shipping.domestic ?? 0) + (order?.shipping.international ?? 0);
+    (order?.shipping.domestic ?? 0) +
+    (order?.shipping.international ?? 0);
+
   const discount =
     order ? productTotal + shippingTotal - order.totalAmount : 0;
-  const orderDateLabel = formatOrderDate(order?.createdAt) || "";
+
+  const orderDateLabel = formatOrderDate(order?.createdAt);
 
   // =============================
   // UI
@@ -176,9 +174,7 @@ export default function OrderHistoryPage() {
       transition={{ duration: 0.3 }}
       className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 lg:py-1 bg-white"
     >
-
-
-      {/* 가운데 입력 폼 (RequestPage처럼 위/아래로 움직이게) */}
+      {/* 검색 박스 */}
       <motion.div
         initial={{ y: "30vh", opacity: 0 }}
         animate={{
@@ -188,11 +184,9 @@ export default function OrderHistoryPage() {
         transition={{ type: "spring", stiffness: 80, damping: 15 }}
         className="w-full max-w-2xl mx-auto text-center mb-10"
       >
-        {/* 상단 타이틀 */}
-        <h1 className="text-2xl font-bold text-[#111111] mb-6">
-            주문내역 조회하기
-        </h1>
-        <div className="bg-white rounded-2xl shadow-lg border border-gray-300 p-6 text-left">
+        <h1 className="text-2xl font-bold mb-6">주문내역 조회하기</h1>
+
+        <div className="bg-white rounded-2xl shadow-lg border p-6 text-left">
           <h3 className="text-lg font-semibold mb-4">주문내역 확인</h3>
 
           <div className="space-y-3">
@@ -201,21 +195,21 @@ export default function OrderHistoryPage() {
               value={receiverName}
               onChange={(e) => setReceiverName(e.target.value)}
               placeholder="이름"
-              className="w-full rounded-xl border border-[#DBDBDB] px-4 py-2.5 text-sm"
+              className="w-full rounded-xl border px-4 py-2.5 text-sm"
             />
             <input
               type="text"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               placeholder="전화번호 (예: 010-1234-5678)"
-              className="w-full rounded-xl border border-[#DBDBDB] px-4 py-2.5 text-sm"
+              className="w-full rounded-xl border px-4 py-2.5 text-sm"
             />
             <input
               type="text"
               value={orderIdInput}
               onChange={(e) => setOrderIdInput(e.target.value)}
               placeholder="주문번호"
-              className="w-full rounded-xl border border-[#DBDBDB] px-4 py-2.5 text-sm"
+              className="w-full rounded-xl border px-4 py-2.5 text-sm"
             />
 
             <motion.button
@@ -223,7 +217,7 @@ export default function OrderHistoryPage() {
               whileTap={{ scale: 0.97 }}
               onClick={handleSearch}
               disabled={isLoading}
-              className="mt-2 w-full px-6 py-2.5 bg-[#ffe788] rounded-xl font-medium text-[#111111] disabled:opacity-50"
+              className="mt-2 w-full px-6 py-2.5 bg-[#ffe788] rounded-xl font-medium disabled:opacity-50"
             >
               {isLoading ? "조회 중..." : "주문내역 확인하기"}
             </motion.button>
@@ -231,39 +225,41 @@ export default function OrderHistoryPage() {
         </div>
       </motion.div>
 
-      {/* 에러만 있고 order 없으면 아래 내용은 안 보여도 됨 */}
       {order && (
         <div className="grid lg:grid-cols-[2fr,1fr] gap-6 lg:gap-8">
-          {/* LEFT 영역 (OrderCompletePage LEFT 복붙) */}
+          {/* LEFT */}
           <div className="space-y-6">
             {/* 주문정보 */}
-            <section className="bg-white rounded-2xl shadow p-6 border border-gray-200 text-sm space-y-2">
-              <p className="text-[#767676]">
+            <section className="bg-white rounded-2xl shadow p-6 border text-sm space-y-2">
+              <p className="text-gray-500">
                 주문 상세 내역 {orderDateLabel && `- ${orderDateLabel}`}
               </p>
-
-              <p className="text-lg font-semibold text-[#111111]">
+              <p className="text-lg font-semibold">
                 주문 번호 {order.orderId}
               </p>
             </section>
 
             {/* 배송지 */}
-            <section className="bg-white rounded-2xl shadow p-6 border border-gray-200 text-sm space-y-1">
-              <h2 className="mb-3 text-lg font-semibold text-[#111111]">
-                배송지
-              </h2>
+            <section className="bg-white rounded-2xl shadow p-6 border text-sm space-y-1">
+              <h2 className="mb-3 text-lg font-semibold">배송지</h2>
+
               <p>받는 분: {order.receiver}</p>
-              {order.receiverPhone && <p>연락처: {order.receiverPhone}</p>}
-              {order.address && <p>주소: {order.address}</p>}
+              <p>연락처: {order.phone}</p>
+              <p>
+                주소: [{order.postalCode}] {order.roadAddress}{" "}
+                {order.detailAddress}
+              </p>
+
+              {order.deliveryRequest && (
+                <p>요청사항: {order.deliveryRequest}</p>
+              )}
             </section>
 
-            {/* 구매대행 상품 */}
-            <section className="bg-white rounded-2xl shadow p-6 border border-gray-200">
+            {/* 상품 리스트 */}
+            <section className="bg-white rounded-2xl shadow p-6 border">
               <div className="flex items-center justify-between mb-3">
-                <h2 className="text-lg font-semibold text-[#111111]">
-                  구매대행 상품
-                </h2>
-                <span className="text-xs text-[#767676]">
+                <h2 className="text-lg font-semibold">구매대행 상품</h2>
+                <span className="text-xs text-gray-500">
                   {order.items.length}건
                 </span>
               </div>
@@ -272,7 +268,7 @@ export default function OrderHistoryPage() {
                 {order.items.map((item) => (
                   <div
                     key={item.id}
-                    className="flex gap-4 border border-[#f1f1f5] rounded-xl p-3"
+                    className="flex gap-4 border rounded-xl p-3"
                   >
                     <img
                       src={item.imageUrl ?? sampleimg}
@@ -280,13 +276,13 @@ export default function OrderHistoryPage() {
                       className="w-16 h-16 rounded-lg object-cover"
                     />
                     <div className="flex-1 text-sm">
-                      <p className="font-medium text-[#111111] line-clamp-2">
+                      <p className="font-medium line-clamp-2">
                         {item.productName}
                       </p>
-                      <p className="mt-1 text-[#111111] font-semibold">
-                        {formatKRW(item.priceKRW)}
+                      <p className="mt-1 font-semibold">
+                        {formatKRW(item.price)}
                       </p>
-                      <p className="mt-1 text-xs text-[#767676]">
+                      <p className="mt-1 text-xs text-gray-500">
                         수량: {item.quantity}개
                       </p>
                     </div>
@@ -296,30 +292,25 @@ export default function OrderHistoryPage() {
             </section>
 
             {/* 결제 수단 */}
-            <section className="bg-white rounded-2xl shadow p-6 border border-gray-200 text-sm">
-              <h2 className="text-lg font-semibold text-[#111111] mb-2">
-                결제 수단
-              </h2>
-              <p className="text-[#111111]">{order.paymentMethod}</p>
+            <section className="bg-white rounded-2xl shadow p-6 border text-sm">
+              <h2 className="text-lg font-semibold mb-2">결제 수단</h2>
+              <p>{order.paymentMethod}</p>
             </section>
           </div>
 
-          {/* RIGHT Summary */}
+          {/* RIGHT 결제 요약 */}
           <aside className="space-y-6">
-            <div className="bg-white rounded-2xl shadow p-6 border border-gray-200 text-sm space-y-3">
-              <h2 className="text-lg font-semibold text-[#111111] mb-2">
-                결제 금액
-              </h2>
+            <div className="bg-white rounded-2xl shadow p-6 border text-sm space-y-3">
+              <h2 className="text-lg font-semibold mb-2">결제 금액</h2>
+
               <div className="flex justify-between">
-                <span className="text-[#505050]">상품 금액</span>
-                <span className="text-[#111111] font-medium">
-                  {formatKRW(productTotal)}
-                </span>
+                <span className="text-gray-600">상품 금액</span>
+                <span className="font-medium">{formatKRW(productTotal)}</span>
               </div>
 
               <div className="flex justify-between">
-                <span className="text-[#505050]">할인 금액</span>
-                <span className="text-[#ff4c4c] font-medium">
+                <span className="text-gray-600">할인 금액</span>
+                <span className="font-medium text-red-500">
                   {discount > 0
                     ? `-${Math.abs(discount).toLocaleString()}원`
                     : "0원"}
@@ -327,17 +318,15 @@ export default function OrderHistoryPage() {
               </div>
 
               <div className="flex justify-between">
-                <span className="text-[#505050]">배송비</span>
-                <span className="text-[#111111] font-medium">
-                  {formatKRW(shippingTotal)}
-                </span>
+                <span className="text-gray-600">배송비</span>
+                <span className="font-medium">{formatKRW(shippingTotal)}</span>
               </div>
 
-              <div className="h-px bg-[#e5e5ec] my-2" />
+              <div className="h-px bg-gray-200 my-2" />
 
               <div className="flex justify-between items-center">
-                <span className="text-sm text-[#505050]">총 결제 금액</span>
-                <span className="text-xl font-bold text-[#111111]">
+                <span className="text-sm text-gray-600">총 결제 금액</span>
+                <span className="text-xl font-bold">
                   {formatKRW(order.totalAmount)}
                 </span>
               </div>
@@ -346,14 +335,14 @@ export default function OrderHistoryPage() {
             <div className="flex flex-col gap-3">
               <button
                 onClick={handleRequestMore}
-                className="w-full py-5 rounded-xl bg-[#ffe788] text-[#111111] text-sm font-semibold hover:brightness-95"
+                className="w-full py-5 rounded-xl bg-[#ffe788] text-sm font-semibold hover:brightness-95"
               >
                 추가로 구매대행 요청
               </button>
 
               <button
                 onClick={handleGoHome}
-                className="w-full py-5 rounded-xl border border-[#e5e5ec] bg-white text-[#505050] text-sm font-medium hover:bg-[#f9f9fb]"
+                className="w-full py-5 rounded-xl border bg-white text-sm font-medium hover:bg-gray-50"
               >
                 홈으로 가기
               </button>
@@ -361,9 +350,6 @@ export default function OrderHistoryPage() {
           </aside>
         </div>
       )}
-
-      {/* order 없고 에러만 있을 때는 위의 alert로 안내했고,
-          여기서는 굳이 별도 블록 안 보여줘도 돼서 생략 */}
     </motion.main>
   );
 }
