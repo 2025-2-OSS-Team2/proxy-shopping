@@ -128,7 +128,7 @@ export default function PaymentsSuccessPage() {
         });
       } catch (e) {
         console.error(e);
-        setErrorMsg("결제 처리 중 오류가 발생했습니다.");
+        setErrorMsg(e instanceof Error ? e.message : String(e));
       } finally {
         setIsProcessing(false);
       }
