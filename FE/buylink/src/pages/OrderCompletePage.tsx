@@ -5,97 +5,53 @@ import { motion } from "motion/react";
 import sampleimg from "../assets/cuteeeee.png";
 
 // =============================
-// 타입 정의
+// 타입 정의 (백엔드 명세에 맞게)
 // =============================
 type OrderItem = {
   id: number;
   productName: string;
-  priceKRW: number;
+  price: number; // ✅ 백엔드의 price 필드
   quantity: number;
   imageUrl?: string;
 };
 
-type ShippingInfo = {
-  domestic: number;
-  international: number;
-};
-
 type OrderDetail = {
-  orderId: number;
+  orderId: string; // ✅ 문자열 orderId
   receiver: string;
-  receiverPhone?: string;
-  address?: string;
-  paymentMethod: string;
+  phone?: string; // ✅ GET /api/orders/{orderId} 응답의 phone
   totalAmount: number;
   items: OrderItem[];
-  shipping: ShippingInfo;
+  // 아래 필드는 백엔드 명세에는 없지만, 나중에 확장될 가능성 고려해서 optional
+  paymentMethod?: string | null;
+  address?: string;
   createdAt?: string;
 };
 
-// 🔹 GET /api/orders/{orderId} 응답
-type OrderDetailApiResponse = OrderDetail;
-
-/*  🔥 템플릿 타입들 → 지금은 사용하지 않으므로 통째로 주석 처리
-// 🔹 POST /api/orders 요청/응답 (다른 페이지에서 사용할 템플릿용)
-type CreateOrderApiRequest = {
-  cartItems: any[];
-  addressId: number;
-  customsCode: string;
-  paymentInfo: any;
+// 🔹 GET /api/orders/{orderId} 응답 래퍼 타입
+type OrderDetailApiResponse = {
+  success: boolean;
+  data: {
+    orderId: string;
+    receiver: string;
+    phone?: string;
+    totalAmount: number;
+    items: {
+      id: number;
+      productName: string;
+      price: number;
+      quantity: number;
+      imageUrl: string;
+    }[];
+    // paymentMethod / address / createdAt 등이 있다면 여기에 추가 가능
+  } | null;
+  error: string | null;
 };
 
-type CreateOrderApiResponse = {
-  orderId: number;
-  totalAmount: number;
-  status: "PAID" | "PENDING" | "FAILED";
-};
+// 🔹 DEV/PROD 공통 API base URL
+const API_BASE_URL =
+  import.meta.env.DEV ? import.meta.env.VITE_API_BASE_URL ?? "" : "";
 
-// 🔹 POST /api/orders/pay 요청/응답 (다른 페이지에서 사용할 템플릿용)
-type PayApiRequest = {
-  orderId: number;
-  method: "TOSS_PAY" | "CARD" | "BANK_TRANSFER" | string;
-  amount: number;
-};
-
-type PayApiResponse = {
-  paymentId: string;
-  status: "SUCCESS" | "FAIL";
-  paidAt: string;
-};
-*/
-
-// =============================
-// 목업
-// =============================
-const MOCK_ORDER_DETAIL: OrderDetail = {
-  orderId: 20251024723840,
-  receiver: "홍길동",
-  receiverPhone: "010-1234-5678",
-  address: "[02000] 서울특별시 중구 퇴계로 265, B205",
-  paymentMethod: "네이버페이-KB카드(일시불)",
-  totalAmount: 14440,
-  createdAt: "2025-07-25T12:34:56",
-  items: [
-    {
-      id: 1,
-      productName: "상품명은 최대 1줄 노출 상품명은 최대 1줄 노출...",
-      priceKRW: 8000,
-      quantity: 1,
-      imageUrl: sampleimg,
-    },
-    {
-      id: 2,
-      productName: "상품명은 최대 1줄 노출 상품명은 최대 1줄 노출...",
-      priceKRW: 8000,
-      quantity: 1,
-      imageUrl: sampleimg,
-    },
-  ],
-  shipping: {
-    domestic: 2900,
-    international: 3540,
-  },
-};
+const buildApiUrl = (path: string) => `${API_BASE_URL}${path}`;
 
 // =============================
 // 유틸 함수
@@ -120,57 +76,88 @@ export default function OrderCompletePage() {
   const params = useParams<{ orderId?: string }>();
   const location = useLocation();
 
-  // /order-complete/:orderId or navigate(..., { state: { orderId } })
-  const orderIdFromParams = params.orderId ? Number(params.orderId) : undefined;
+  // ✅ PaymentsSuccessPage에서 넘겨준 orderId (state 기반)
   const orderIdFromState =
-    (location.state as { orderId?: number } | undefined)?.orderId;
+    (location.state as { orderId?: string } | undefined)?.orderId;
 
-  const effectiveOrderId =
-    orderIdFromParams ?? orderIdFromState ?? MOCK_ORDER_DETAIL.orderId;
+  // ✅ URL 파라미터로 /order-complete/:orderId 형태도 나중에 쓸 수 있게 여유 있게 처리
+  const orderIdFromParams = params.orderId;
+
+  const effectiveOrderId = orderIdFromState ?? orderIdFromParams ?? null;
 
   const [order, setOrder] = useState<OrderDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
-  // =============================
-  // 목업 주문 상세 API
-  // =============================
-  const mockFetchOrderDetail = async (
-    id: number
-  ): Promise<OrderDetailApiResponse> => {
-    console.log("주문 상세 조회(목업) id:", id);
-    return {
-      ...MOCK_ORDER_DETAIL,
-      orderId: id,
-    };
-  };
-
   useEffect(() => {
+    // 주문번호가 아예 없으면 바로 에러 처리
+    if (!effectiveOrderId) {
+      setLoadError("주문 번호가 전달되지 않았습니다.");
+      setLoading(false);
+      return;
+    }
+
     const fetchOrder = async () => {
       try {
         setLoading(true);
         setLoadError(null);
 
-        // 🔥 현재: 목업 사용
-        const data = await mockFetchOrderDetail(effectiveOrderId);
+        // ✅ GET /api/orders/{orderId}
+        // 명세: GET /api/orders/{orderId}??receiver={이름}&phone={전화번호}
+        // 일단 orderId만으로 호출하고, receiver/phone 쿼리는 선택적으로 나중에 붙여도 됨
+        const url = buildApiUrl(`/api/orders/${effectiveOrderId}`);
+        console.log("[OrderCompletePage] GET /api/orders URL:", url);
 
-        // 🔁 나중에 실제 API 연결 시 (GET /api/orders/{orderId})
-        /*
-        const res = await fetch(`/api/orders/${effectiveOrderId}`, {
+        const res = await fetch(url, {
           method: "GET",
+          credentials: "include",
         });
 
+        console.log(
+          "[OrderCompletePage] /api/orders status:",
+          res.status,
+          res.statusText
+        );
+
         if (!res.ok) {
-          throw new Error("주문 상세 조회 실패");
+          const text = await res.text();
+          console.log("[OrderCompletePage] /api/orders error body:", text);
+          throw new Error(`주문 상세 조회 실패 (status ${res.status})`);
         }
 
-        const data = (await res.json()) as OrderDetailApiResponse;
-        */
+        const json = (await res.json()) as OrderDetailApiResponse;
+        console.log("[OrderCompletePage] /api/orders response json:", json);
 
-        setOrder(data);
+        if (!json.success || !json.data) {
+          throw new Error(json.error ?? "주문 상세 데이터가 없습니다.");
+        }
+
+        const data = json.data;
+
+        // ✅ 백엔드 응답 -> 화면에서 쓰는 타입으로 매핑
+        const mapped: OrderDetail = {
+          orderId: data.orderId,
+          receiver: data.receiver,
+          phone: data.phone,
+          totalAmount: data.totalAmount,
+          items: data.items.map((item) => ({
+            id: item.id,
+            productName: item.productName,
+            price: item.price,
+            quantity: item.quantity,
+            imageUrl: item.imageUrl,
+          })),
+          // paymentMethod / address / createdAt은 명세에 없으니 일단 비워둠
+        };
+
+        setOrder(mapped);
       } catch (e) {
-        console.error(e);
-        setLoadError("주문 정보를 불러오는 중 문제가 발생했습니다.");
+        console.error("[OrderCompletePage] fetchOrder error:", e);
+        setLoadError(
+          e instanceof Error
+            ? e.message
+            : "주문 정보를 불러오는 중 문제가 발생했습니다."
+        );
       } finally {
         setLoading(false);
       }
@@ -217,12 +204,13 @@ export default function OrderCompletePage() {
     );
   }
 
+  // ✅ 합계/할인 계산 (shipping은 명세에 없으니 0 처리)
   const productTotal = order.items.reduce(
-    (sum, item) => sum + item.priceKRW * item.quantity,
+    (sum, item) => sum + item.price * item.quantity,
     0
   );
-  const shippingTotal = order.shipping.domestic + order.shipping.international;
-  const discount = productTotal + shippingTotal - order.totalAmount;
+  const shippingFee = 0;
+  const discount = productTotal + shippingFee - order.totalAmount;
   const orderDateLabel = formatOrderDate(order.createdAt) || "";
 
   return (
@@ -262,7 +250,7 @@ export default function OrderCompletePage() {
           {/* 주문정보 */}
           <section className="bg-white rounded-2xl shadow p-6 border border-gray-200 text-sm space-y-2">
             <p className="text-[#767676]">
-              주문 상세 내역 - {orderDateLabel}
+              주문 상세 내역 {orderDateLabel && `- ${orderDateLabel}`}
             </p>
 
             <p className="text-lg font-semibold text-[#111111]">
@@ -276,13 +264,13 @@ export default function OrderCompletePage() {
             </p>
           </section>
 
-          {/* 배송지 */}
+          {/* 배송지 (receiver + phone만 표시) */}
           <section className="bg-white rounded-2xl shadow p-6 border border-gray-200 text-sm space-y-1">
             <h2 className="mb-3 text-lg font-semibold text-[#111111]">
               배송지
             </h2>
             <p>받는 분: {order.receiver}</p>
-            {order.receiverPhone && <p>연락처: {order.receiverPhone}</p>}
+            {order.phone && <p>연락처: {order.phone}</p>}
             {order.address && <p>주소: {order.address}</p>}
           </section>
 
@@ -313,7 +301,7 @@ export default function OrderCompletePage() {
                       {item.productName}
                     </p>
                     <p className="mt-1 text-[#111111] font-semibold">
-                      {formatKRW(item.priceKRW)}
+                      {formatKRW(item.price)}
                     </p>
                     <p className="mt-1 text-xs text-[#767676]">
                       수량: {item.quantity}개
@@ -324,13 +312,15 @@ export default function OrderCompletePage() {
             </div>
           </section>
 
-          {/* 결제 수단 */}
-          <section className="bg-white rounded-2xl shadow p-6 border border-gray-200 text-sm">
-            <h2 className="text-lg font-semibold text-[#111111] mb-2">
-              결제 수단
-            </h2>
-            <p className="text-[#111111]">{order.paymentMethod}</p>
-          </section>
+          {/* 결제 수단 (명세에 paymentMethod 없어서 있으면만 노출) */}
+          {order.paymentMethod && (
+            <section className="bg-white rounded-2xl shadow p-6 border border-gray-200 text-sm">
+              <h2 className="text-lg font-semibold text-[#111111] mb-2">
+                결제 수단
+              </h2>
+              <p className="text-[#111111]">{order.paymentMethod}</p>
+            </section>
+          )}
         </div>
 
         {/* RIGHT Summary */}
@@ -358,7 +348,7 @@ export default function OrderCompletePage() {
             <div className="flex justify-between">
               <span className="text-[#505050]">배송비</span>
               <span className="text-[#111111] font-medium">
-                {formatKRW(shippingTotal)}
+                {formatKRW(shippingFee)}
               </span>
             </div>
 
