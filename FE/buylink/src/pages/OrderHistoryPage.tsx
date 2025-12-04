@@ -171,12 +171,6 @@ export default function OrderHistoryPage() {
   // =============================
   // 금액 계산 (CartQuotation 스타일)
   // =============================
-  const productTotal =
-  order?.productTotalKRW ??
-  order?.items.reduce((sum, item) => sum + item.price * item.quantity, 0) ??
-  0;
-
-  const shippingTotal = order?.totalShippingFeeKRW ?? 0;
   
   const subtotal =
     (order?.productTotalKRW ?? 0) +
