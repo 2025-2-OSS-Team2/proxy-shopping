@@ -50,6 +50,7 @@ export default function RequestPage() {
   type ServerProduct = Omit<Product, "quantity">;
 
   // 1) 상품 정보 크롤링: POST /api/products/fetch
+  // 1) 상품 정보 크롤링: POST /api/products/fetch
   const fetchProductFromServer = async (
     url: string
   ): Promise<ApiResponse<ServerProduct>> => {
@@ -57,19 +58,51 @@ export default function RequestPage() {
     console.log("[fetchProductFromServer] DEV:", import.meta.env.DEV);
     console.log("[fetchProductFromServer] Final URL:", finalUrl);
 
-    const res = await fetch(finalUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url }),
-      credentials: "include",
-    });
+    try {
+      const res = await fetch(finalUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url }),
+        credentials: "include",
+      });
 
-    if (!res.ok) {
-      throw new Error("상품 정보를 불러오는데 실패했습니다.");
-    }
+      // 여기서 더 이상 throw 하지 말고,
+      // 항상 ApiResponse 형태로 반환
+      if (!res.ok) {
+        let message = "상품 정보를 불러오는데 실패했습니다.";
 
-    return (await res.json()) as ApiResponse<ServerProduct>;
-  };
+        // 서버가 JSON으로 에러를 내려주는 경우를 최대한 활용
+        try {
+          const errBody = await res.json();
+          if (errBody?.error && typeof errBody.error === "string") {
+            message = errBody.error;
+          } else if (errBody?.message && typeof errBody.message === "string") {
+            message = errBody.message;
+          }
+        } catch {
+          // response가 HTML(낫파운드 페이지)라서 json 파싱 실패해도 무시
+        }
+
+        return {
+          success: false,
+          data: null,
+          error: message,
+        };
+      }
+
+    // 정상 응답인 경우 그대로 JSON 파싱
+    const json = (await res.json()) as ApiResponse<ServerProduct>;
+    return json;
+  } catch (e) {
+    console.error("[fetchProductFromServer] network error:", e);
+    // 네트워크 에러 등도 전부 success:false로 귀결
+    return {
+      success: false,
+      data: null,
+      error: "상품 정보를 불러오는데 실패했습니다.",
+    };
+  }
+};
 
   // --------------------------------------------------------
   // URL 입력 후 “불러오기”
@@ -81,12 +114,12 @@ export default function RequestPage() {
     try {
       const url = urlInput.trim();
 
-      // 🔥 1) 상품 크롤링 API 호출
+      // 1) 상품 크롤링 API 호출
       const fetchResult = await fetchProductFromServer(url);
 
       if (!fetchResult.success || !fetchResult.data) {
-        alert(fetchResult.error ?? "유효하지 않은 URL입니다.");
-        setIsLoading(false);
+        // ✅ 어떤 에러든 여기서만 alert로 처리
+        alert(fetchResult.error ?? "상품 정보를 불러오는데 실패했습니다.");
         return;
       }
 
@@ -96,14 +129,15 @@ export default function RequestPage() {
         quantity: 1,
       };
 
-      // 🔁 품절 규칙 재계산
+      // 품절 규칙 재계산
       setProducts((prev) =>
         normalizeSoldOutFlags<Product>([...prev, newProduct])
       );
       setUrlInput("");
     } catch (e) {
       console.error(e);
-      alert("상품을 불러오는 중 문제가 발생했습니다.");
+      // try 블록 바깥에서 진짜 예상 못 한 에러만 잡기
+      alert("상품 정보를 불러오는 중 알 수 없는 문제가 발생했습니다.");
     } finally {
       setIsLoading(false);
     }
