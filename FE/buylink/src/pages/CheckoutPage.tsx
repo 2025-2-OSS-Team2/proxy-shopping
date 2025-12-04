@@ -57,7 +57,7 @@ type SavedAddress = {
 
 type CustomsInfo = {
   code: string;
-  name: string;
+  //name: string;
 };
 
 type AddressSearchApiResponse = {
@@ -371,9 +371,9 @@ export default function CheckoutPage() {
               </button>
             </div>
 
-            {customsInfo ? (
+            {customsInfo && savedAddress ? (
               <div className="text-sm leading-relaxed text-[#111111] space-y-1">
-                <p className="font-medium">{customsInfo.name} 님</p>
+                <p className="font-medium">{savedAddress.receiverName} 님</p>
                 <p className="text-[#505050]">
                   개인통관고유번호: {maskCustomsCode(customsInfo.code)}
                 </p>
@@ -856,7 +856,7 @@ function CustomsCodeModal({
       const json = (await res.json()) as CustomsVerifyResponse;
 
       if (json.isValid) {
-        onVerified({ code: trimmed, name: json.name });
+        onVerified({ code: trimmed});
         window.localStorage.setItem("buylink_customsCode", trimmed);
       } else {
         alert("올바르지 않은 번호입니다. 다시 확인해주세요.");
