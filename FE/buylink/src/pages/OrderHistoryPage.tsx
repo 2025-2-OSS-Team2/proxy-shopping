@@ -133,12 +133,27 @@ export default function OrderHistoryPage() {
       const url = buildApiUrl(
         `/api/orders/${encodeURIComponent(trimmedOrderId)}?${params.toString()}`
       );
-      console.log("[OrderHistoryPage] GET:", url);
+
+      // ✅ 요청 정보 로그
+      console.log("[OrderHistoryPage] 🔵 요청 정보", {
+        url,
+        receiver: trimmedName,
+        phone: trimmedPhone,
+        orderId: trimmedOrderId,
+      });
 
       const res = await fetch(url, {
         method: "GET",
         credentials: "include",
       });
+
+      // ✅ HTTP 상태 코드 로그
+      console.log("[OrderHistoryPage] 🟡 HTTP status", res.status, res.statusText);
+
+      // ✅ raw body도 한 번 찍어 보기 (JSON 파싱 전에)
+      const resClone = res.clone();
+      const rawText = await resClone.text();
+      console.log("[OrderHistoryPage] 📝 raw response body:", rawText);
 
       if (!res.ok) {
         throw new Error("주문 정보를 찾을 수 없습니다.");
@@ -150,7 +165,8 @@ export default function OrderHistoryPage() {
         error: string | null;
       };
 
-      console.log("🔥 백엔드 응답:", json);
+      // ✅ 최종 파싱된 JSON 로그
+      console.log("[OrderHistoryPage] 🔥 파싱된 백엔드 응답:", json);
 
       if (!json.success || !json.data) {
         throw new Error(json.error ?? "주문 정보를 찾을 수 없습니다.");
@@ -158,12 +174,13 @@ export default function OrderHistoryPage() {
 
       setOrder(json.data);
     } catch (e) {
-      console.error("[OrderHistoryPage] handleSearch error:", e);
+      console.error("[OrderHistoryPage] ❌ handleSearch error:", e);
       alert("주문 정보를 찾을 수 없어요. 입력한 정보를 다시 확인해 주세요.");
     } finally {
       setIsLoading(false);
     }
   };
+
 
   const handleGoHome = () => navigate("/");
   const handleRequestMore = () => navigate("/request");
