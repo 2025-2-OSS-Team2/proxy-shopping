@@ -1,92 +1,22 @@
-// src/pages/CheckoutPage.tsx
+// src/pages/CartPage.tsx
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { motion } from "motion/react";
-import sampleimg from "../assets/cuteeeee.png";
-// 🔹 주소 + 개인통관고유번호 유효성 검사 util
-import {
-  validateAddress,
-  type AddressFormValues,
-  validateCustomsCode,
-} from "../utils/validation";
+import { Plus, X } from "lucide-react";
+import CartQuotation from "../components/CartQuotation";
 
-// =============================
-// TossPayments 전역 타입 선언
-// =============================
-declare global {
-  interface Window {
-    TossPayments?: (clientKey: string) => {
-      requestPayment: (method: string, options: any) => Promise<void>;
-    };
-  }
-}
-
-// 🔹 토스페이먼츠 테스트 클라이언트 키 (프론트에서 써도 되는 키)
-const TOSS_CLIENT_KEY = "test_ck_kYG57Eba3GmNoeeGjpWErpWDOxmA";
-
-// 🔹 DEV/PROD 공통 API base URL
-const API_BASE_URL =
-  import.meta.env.DEV ? import.meta.env.VITE_API_BASE_URL ?? "" : "";
-
-const buildApiUrl = (path: string) => `${API_BASE_URL}${path}`;
-
-// =============================
-// 타입
-// =============================
-type OrderItem = {
+type CartItem = {
   id: number;
   productName: string;
   priceKRW: number;
   quantity: number;
   imageUrl: string;
+  selected: boolean;
+  aiWeightKg?: number;
+  aiVolumeM3?: number;
 };
 
-type AddressResult = {
-  roadAddress: string;
-  jibunAddress: string;
-  zipCode: string;
-};
-
-type SavedAddress = {
-  id: number;
-  receiverName: string;
-  phone: string;
-  postalCode: string;
-  roadAddress: string;
-  detailAddress: string;
-  deliveryRequest: string;
-};
-
-type CustomsInfo = {
-  code: string;
-  name: string;
-};
-
-// 🔹 /api/address/search 응답 타입
-type AddressSearchApiResponse = {
-  success: boolean;
-  data: {
-    currentPage: number;
-    countPerPage: number;
-    totalCount: number;
-    addresses: AddressResult[];
-  } | null;
-  error: string | null;
-};
-
-// 🔹 /api/orders/address 응답 타입
-type OrdersAddressApiResponse = {
-  success: boolean;
-  data: SavedAddress | null;
-  error: string | null;
-};
-
-// 🔹 /api/orders/customs-code/verify 응답 타입
-type CustomsVerifyResponse = {
-  isValid: boolean;
-  name: string;
-};
-
-// 🔹 /api/cart GET 응답 타입 (CartPage와 동일 스펙)
+// /api/cart GET 응답 스펙
 type CartApiItem = {
   id: number;
   productName: string;
@@ -105,82 +35,48 @@ type CartApiGetResponse = {
   error: string | null;
 };
 
-// 🔹 /api/cart/estimate 응답 타입
-type CartEstimate = {
-  productTotalKRW: number;
-  serviceFeeKRW: number;
+// 🔹 DEV/PROD 공통 API base URL
+const API_BASE_URL =
+  import.meta.env.DEV ? import.meta.env.VITE_API_BASE_URL ?? "" : "";
 
-  totalActualWeightKg: number;
-  totalVolumeM3: number;
-  volumetricWeightKg: number;
-  chargeableWeightKg: number;
+const buildApiUrl = (path: string) => `${API_BASE_URL}${path}`;
 
-  emsYen: number;
-  internationalShippingKRW: number;
-  domesticShippingKRW: number;
-  totalShippingFeeKRW: number;
+export default function CartPage() {
+  const navigate = useNavigate();
 
-  paymentFeeKRW: number;
-  extraPackagingFeeKRW: number;
-  insuranceFeeKRW: number;
+  const [items, setItems] = useState<CartItem[]>([]);
+  const [extraPackaging, setExtraPackaging] = useState(true);
+  const [insurance, setInsurance] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
 
-  grandTotalKRW: number;
-};
+  // 🔹 선택된 상품만 필터링
+  const selectedItems = items.filter((i) => i.selected);
 
-type CartEstimateApiResponse = {
-  success: boolean;
-  data: CartEstimate | null;
-  error: string | null;
-};
-
-const formatKRW = (v: number) => `${v.toLocaleString()}원`;
-
-// ========================================
-// 메인 컴포넌트
-// ========================================
-export default function CheckoutPage() {
-  const [agree, setAgree] = useState(false);
-
-  const [addressModalOpen, setAddressModalOpen] = useState(false);
-  const [savedAddress, setSavedAddress] = useState<SavedAddress | null>(null);
-
-  const [customsModalOpen, setCustomsModalOpen] = useState(false);
-  const [customsInfo, setCustomsInfo] = useState<CustomsInfo | null>(null);
-
-  const [isPaying, setIsPaying] = useState(false);
-
-  // 🔹 장바구니에서 불러온 주문 상품 / 견적
-  const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
-  const [estimate, setEstimate] = useState<CartEstimate | null>(null);
-  const [isLoadingOrder, setIsLoadingOrder] = useState(false);
-
-  // ==============================
-  // 주문/견적 불러오기
-  // ==============================
+  // --------------------------------------------------------
+  // 실제 장바구니 조회: GET /api/cart
+  // --------------------------------------------------------
   useEffect(() => {
     const fetchOrderAndEstimate = async () => {
       setIsLoadingOrder(true);
       try {
         // 1) 장바구니 아이템 불러오기
         const cartUrl = buildApiUrl("/api/cart");
-        console.log("[CheckoutPage] GET /api/cart:", cartUrl);
-
         const cartRes = await fetch(cartUrl, {
           method: "GET",
           credentials: "include",
         });
-
+  
         if (!cartRes.ok) {
           throw new Error("장바구니 조회 실패");
         }
-
+  
         const cartJson = (await cartRes.json()) as CartApiGetResponse;
-        console.log("[CheckoutPage] /api/cart response:", cartJson);
-
+  
         if (!cartJson.success || !cartJson.data) {
           throw new Error(cartJson.error ?? "장바구니 데이터가 없습니다.");
         }
-
+  
+        // ✅ 여기서 orderItems + itemIds 둘 다 만든다
         const mappedItems: OrderItem[] = cartJson.data.items.map((item) => ({
           id: item.id,
           productName: item.productName,
@@ -188,37 +84,34 @@ export default function CheckoutPage() {
           quantity: 1,
           imageUrl: item.imageUrl,
         }));
-
         setOrderItems(mappedItems);
-
+  
+        const itemIds = mappedItems.map((item) => item.id); // ← 이게 payload의 itemIds
+  
         // 2) 견적 불러오기
         const estimateUrl = buildApiUrl("/api/cart/estimate");
-        console.log("[CheckoutPage] POST /api/cart/estimate:", estimateUrl);
-
         const estimateRes = await fetch(estimateUrl, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
+            itemIds,           // ✅ 장바구니에서 가져온 id 배열
             extraPackaging: true,
             insurance: true,
           }),
           credentials: "include",
         });
-
+  
         if (!estimateRes.ok) {
           throw new Error("견적 계산 요청 실패");
         }
-
-        const estimateJson = (await estimateRes.json()) as CartEstimateApiResponse;
-        console.log(
-          "[CheckoutPage] /api/cart/estimate response:",
-          estimateJson
-        );
-
+  
+        const estimateJson =
+          (await estimateRes.json()) as CartEstimateApiResponse;
+  
         if (!estimateJson.success || !estimateJson.data) {
           throw new Error(estimateJson.error ?? "견적 계산 실패");
         }
-
+  
         setEstimate(estimateJson.data);
       } catch (e) {
         console.error("[CheckoutPage] fetchOrderAndEstimate error:", e);
@@ -228,596 +121,340 @@ export default function CheckoutPage() {
         setIsLoadingOrder(false);
       }
     };
-
+  
     fetchOrderAndEstimate();
   }, []);
 
-  // ==============================
-  // 결제 금액
-  // ==============================
-  const productTotal = orderItems.reduce(
-    (sum, item) => sum + item.priceKRW * item.quantity,
-    0
-  );
-  const discount = 0;
-  const shippingFee = 0;
 
-  const fallbackTotal = productTotal - discount + shippingFee;
-  const totalAmount = estimate ? estimate.grandTotalKRW : fallbackTotal;
+  // --------------------------------------------------------
+  // 선택/토글/삭제
+  // --------------------------------------------------------
+  const handleToggleAll = () => {
+    const allSelected = items.every((i) => i.selected);
+    setItems((prev) => prev.map((item) => ({ ...item, selected: !allSelected })));
+  };
 
-  const maskCustomsCode = (code: string) => {
-    if (code.length <= 5) return code;
-    return (
-      code.slice(0, 5) + "*".repeat(Math.max(0, code.length - 7)) + code.slice(-2)
+  const handleToggleOne = (id: number) => {
+    setItems((prev) =>
+      prev.map((item) =>
+        item.id === id ? { ...item, selected: !item.selected } : item
+      )
     );
   };
 
-  // ==============================
-  // 결제 버튼 클릭
-  // ==============================
-  const handlePay = async () => {
-    if (!savedAddress) {
-      alert("배송지를 등록해 주세요.");
+  // 선택 삭제: DELETE /api/cart?ids=1,3,7
+  const handleDeleteSelected = async () => {
+    const ids = selectedItems.map((i) => i.id);
+    if (ids.length === 0) {
+      alert("삭제할 상품을 선택해주세요.");
       return;
     }
-    if (!customsInfo) {
-      alert("개인통관고유번호를 등록해 주세요.");
-      return;
-    }
-    if (!agree) {
-      alert("주문정보 확인 및 약관에 동의해 주세요.");
-      return;
-    }
-    if (!totalAmount || totalAmount <= 0) {
-      alert("결제할 상품 또는 금액 정보가 유효하지 않습니다.");
-      return;
-    }
-
-    setIsPaying(true);
 
     try {
-      if (!window.TossPayments) {
-        alert(
-          "결제 모듈이 로드되지 않았습니다. index.html에 TossPayments 스크립트가 추가되어 있는지 확인해 주세요."
-        );
-        return;
-      }
+      const query = ids.join(",");
+      const finalUrl = buildApiUrl(`/api/cart?ids=${encodeURIComponent(query)}`);
+      console.log("[CartPage] DELETE /api/cart (selected):", finalUrl);
 
-      const tossPayments = window.TossPayments(TOSS_CLIENT_KEY);
-      const orderId = `ORDER-${Date.now()}`;
-
-      await tossPayments.requestPayment("CARD", {
-        amount: totalAmount,
-        orderId,
-        orderName: "BuyLink 구매대행 결제",
-        customerName: savedAddress.receiverName,
-        successUrl: `${window.location.origin}/payments/success`,
-        failUrl: `${window.location.origin}/payments/fail`,
+      const res = await fetch(finalUrl, {
+        method: "DELETE",
+        credentials: "include",
       });
-    } catch (error: any) {
-      console.error(error);
-      alert(
-        `결제창을 닫았거나 오류가 발생했습니다.\n${error?.message ?? ""}`
-      );
-    } finally {
-      setIsPaying(false);
+
+      if (!res.ok) throw new Error("선택 상품 삭제 실패");
+
+      const json = await res.json();
+      console.log("[CartPage] delete selected result:", json);
+
+      setItems((prev) => prev.filter((i) => !ids.includes(i.id)));
+    } catch (e) {
+      console.error("[CartPage] handleDeleteSelected error:", e);
+      alert("선택 상품 삭제 중 문제가 발생했습니다.");
     }
   };
 
+  // 개별 삭제: DELETE /api/cart?ids=1
+  const handleDeleteOne = async (id: number) => {
+    try {
+      const finalUrl = buildApiUrl(`/api/cart?ids=${id}`);
+      console.log("[CartPage] DELETE /api/cart (one):", finalUrl);
+
+      const res = await fetch(finalUrl, {
+        method: "DELETE",
+        credentials: "include",
+      });
+
+      if (!res.ok) throw new Error("상품 삭제 실패");
+
+      const json = await res.json();
+      console.log("[CartPage] delete one result:", json);
+
+      setItems((prev) => prev.filter((i) => i.id !== id));
+    } catch (e) {
+      console.error("[CartPage] handleDeleteOne error:", e);
+      alert("상품 삭제 중 문제가 발생했습니다.");
+    }
+  };
+
+  const handleGoRequestPage = () => navigate("/request");
+
+  // --------------------------------------------------------
+  // 결제 버튼
+  // --------------------------------------------------------
+  const handleGoCheckoutPage = () => {
+    if (selectedItems.length === 0) {
+      alert("결제할 상품을 선택해주세요.");
+      return;
+    }
+
+    // TODO: 나중에 선택된 상품 id를 state나 query로 넘겨도 됨
+    navigate("/checkout");
+  };
+
+  // --------------------------------------------------------
+  // UI
+  // --------------------------------------------------------
   return (
     <motion.main
-      key="checkout"
+      key="cart"
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
       className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 lg:py-12 bg-white"
     >
       <h1 className="text-2xl lg:text-3xl font-bold text-[#111111] mb-6">
-        주문/결제
+        장바구니
       </h1>
 
-      <div className="grid lg:grid-cols-[2fr,1fr] gap-6 lg:gap-8">
-        {/* LEFT */}
-        <section className="space-y-6">
-          {/* 배송지 */}
-          <div className="bg-white rounded-2xl shadow p-6 border border-gray-200">
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-lg font-semibold text-[#111111]">배송지</h2>
-
-              <button
-                onClick={() => setAddressModalOpen(true)}
-                className="text-sm text-[#111111] font-medium hover:underline"
-              >
-                등록
-              </button>
-            </div>
-
-            {savedAddress ? (
-              <div className="text-sm leading-relaxed text-[#111111]">
-                <p>{savedAddress.receiverName}</p>
-                <p>{savedAddress.phone}</p>
-                <p>{savedAddress.roadAddress}</p>
-                <p>{savedAddress.detailAddress}</p>
-                <p className="text-[#767676] mt-2">
-                  {savedAddress.deliveryRequest}
-                </p>
-              </div>
-            ) : (
-              <div className="border border-dashed border-[#e5e5ec] rounded-xl py-6 px-4 text-sm text-[#767676] text-center">
-                배송지를 등록해 주세요.
-              </div>
-            )}
-          </div>
-
-          {/* 개인통관고유번호 */}
-          <div className="bg-white rounded-2xl shadow p-6 border border-gray-200">
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-lg font-semibold text-[#111111]">
-                개인통관고유번호
-              </h2>
-              <button
-                type="button"
-                onClick={() => setCustomsModalOpen(true)}
-                className="px-4 py-3 rounded-xl bg-[#ffe788] text-[#111111] text-sm font-semibold hover:brightness-95 transition"
-              >
-                10초만에 조회하기
-              </button>
-            </div>
-
-            {customsInfo ? (
-              <div className="text-sm leading-relaxed text-[#111111] space-y-1">
-                <p className="font-medium">{customsInfo.name} 님</p>
-                <p className="text-[#505050]">
-                  개인통관고유번호: {maskCustomsCode(customsInfo.code)}
-                </p>
-              </div>
-            ) : (
-              <div className="border border-dashed border-[#e5e5ec] rounded-xl py-5 px-4 text-sm text-[#76776
-
-]">
-                개인통관고유번호를 등록해 주세요.
-              </div>
-            )}
-          </div>
-
-          {/* 구매대행 상품 */}
-          <div className="bg-white rounded-2xl shadow p-6 border border-gray-200">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-[#111111]">
-                구매대행 상품
-              </h2>
-              <span className="text-xs text-[#767676]">
-                {orderItems.length}건
-              </span>
-            </div>
-
-            {isLoadingOrder ? (
-              <div className="border border-dashed border-[#e5e5ec] rounded-xl py-5 px-4 text-sm text-[#767676]">
-                결제할 상품 정보를 불러오는 중입니다...
-              </div>
-            ) : orderItems.length === 0 ? (
-              <div className="border border-dashed border-[#e5e5ec] rounded-xl py-5 px-4 text-sm text-[#767676]">
-                결제할 상품이 없습니다. 장바구니에서 상품을 담아주세요.
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {orderItems.map((item) => (
-                  <div
-                    key={item.id}
-                    className="flex gap-4 border border-[#f1f1f5] rounded-xl p-3"
-                  >
-                    <img
-                      src={item.imageUrl || sampleimg}
-                      alt={item.productName}
-                      className="w-16 h-16 rounded-lg object-cover"
-                    />
-                    <div className="flex-1 text-sm">
-                      <p className="font-medium text-[#111111] line-clamp-2">
-                        {item.productName}
-                      </p>
-                      <p className="mt-1 text-[#111111] font-semibold">
-                        {formatKRW(item.priceKRW)}
-                      </p>
-                      <p className="mt-1 text-xs text-[#767676]">
-                        수량: {item.quantity}개
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* 약관 */}
-          <div className="bg-white rounded-2xl shadow p-5 border border-gray-200 text-xs text-[#505050]">
-            <label className="flex items-start gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                className="mt-0.5 w-4 h-4 border-[#d1d1e0]"
-                checked={agree}
-                onChange={(e) => setAgree(e.target.checked)}
-              />
-              <span>
-                [필수] 주문한 상품의 결제, 배송, 주문정보를 확인하였으며 이에
-                동의합니다.
-              </span>
-            </label>
-          </div>
-        </section>
-
-        {/* RIGHT */}
-        <aside className="space-y-4">
-          <div className="bg-white rounded-2xl shadow p-6 border border-gray-200 space-y-3">
-            <h2 className="text-lg font-semibold text-[#111111] mb-2">
-              결제 금액
-            </h2>
-
-            <div className="space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span className="text-[#505050]">상품 금액</span>
-                <span className="text-[#111111] font-medium">
-                  {formatKRW(productTotal)}
+      <div className="grid lg:grid-cols-3 gap-6 lg:gap-8">
+        {/* 왼쪽: 상품 리스트 */}
+        <div className="lg:col-span-2 flex flex-col lg:pr-2">
+          {/* 전체 선택 */}
+          <div className="bg-white rounded-2xl shadow p-6 border border-gray-200 mb-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <input
+                  type="checkbox"
+                  className="w-5 h-5 accent-[#ffcc4c]"
+                  checked={items.length > 0 && items.every((i) => i.selected)}
+                  onChange={handleToggleAll}
+                />
+                <span className="text-sm lg:text-base text-[#111111]">
+                  전체 선택
                 </span>
               </div>
 
-              <div className="flex justify-between">
-                <span className="text-[#505050]">할인 금액</span>
-                <span className="text-[#ff4c4c] font-medium">0원</span>
-              </div>
-
-              <div className="flex justify-between">
-                <span className="text-[#505050]">배송비</span>
-                <span className="text-[#111111] font-medium">무료</span>
-              </div>
-            </div>
-
-            <div className="h-px bg-[#e5e5ec] my-2" />
-
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-[#505050]">총 결제 금액</span>
-              <span className="text-xl font-bold text-[#111111]">
-                {formatKRW(totalAmount)}
-              </span>
-            </div>
-          </div>
-
-          <button
-            onClick={handlePay}
-            disabled={isPaying || isLoadingOrder}
-            className="w-full py-4 rounded-xl bg-gradient-to-r from-[#ffe788] to-[#ffcc4c] text-[#111111] font-semibold shadow-lg hover:shadow-xl transition-all disabled:opacity-60"
-          >
-            {isPaying
-              ? "결제 처리 중..."
-              : `${formatKRW(totalAmount)} 결제하기`}
-          </button>
-        </aside>
-      </div>
-
-      {/* 배송지 등록 MODAL */}
-      {addressModalOpen && (
-        <AddressModal
-          onClose={() => setAddressModalOpen(false)}
-          onSaved={(addr) => {
-            setSavedAddress(addr);
-            setAddressModalOpen(false);
-          }}
-        />
-      )}
-
-      {/* 개인통관고유번호 MODAL */}
-      {customsModalOpen && (
-        <CustomsCodeModal
-          onClose={() => setCustomsModalOpen(false)}
-          onVerified={(info) => {
-            setCustomsInfo(info);
-            setCustomsModalOpen(false);
-          }}
-        />
-      )}
-    </motion.main>
-  );
-}
-
-// ========================================
-// 배송지 등록 모달
-// ========================================
-function AddressModal({
-  onClose,
-  onSaved,
-}: {
-  onClose: () => void;
-  onSaved: (addr: SavedAddress) => void;
-}) {
-  const [receiverName, setReceiverName] = useState("");
-  const [phone, setPhone] = useState("");
-  const [query, setQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<AddressResult[]>([]);
-  const [roadAddress, setRoadAddress] = useState("");
-  const [postalCode, setPostalCode] = useState("");
-  const [detailAddress, setDetailAddress] = useState(""); // ✅ 상세주소 state
-  const [deliveryRequest, setDeliveryRequest] = useState("");
-
-  const handleSearch = async () => {
-    if (!query.trim()) return;
-
-    try {
-      const url = buildApiUrl(
-        `/api/address/search?keyword=${encodeURIComponent(query)}`
-      );
-      console.log("[AddressModal] GET /api/address/search:", url);
-
-      const res = await fetch(url, { method: "GET", credentials: "include" });
-
-      if (!res.ok) {
-        throw new Error("주소 검색 실패");
-      }
-
-      const json = (await res.json()) as AddressSearchApiResponse;
-
-      if (json.success && json.data) {
-        setSearchResults(json.data.addresses);
-      } else {
-        alert(json.error ?? "주소 검색에 실패했습니다.");
-      }
-    } catch (e) {
-      console.error(e);
-      alert("주소 검색 중 문제가 발생했습니다.");
-    }
-  };
-
-  const handleSubmit = async () => {
-    const values: AddressFormValues = {
-      receiverName: receiverName.trim(),
-      phone: phone.trim(),
-      roadAddress: roadAddress.trim(),
-      postalCode: postalCode.trim(),
-      detailAddress: detailAddress.trim(),
-      deliveryRequest: deliveryRequest.trim(),
-    };
-
-    const errors = validateAddress(values);
-    const firstError = Object.values(errors).find((msg) => msg);
-
-    if (firstError) {
-      alert(firstError);
-      return;
-    }
-
-    const payload: Omit<SavedAddress, "id"> = {
-      receiverName: values.receiverName,
-      phone: values.phone,
-      postalCode: values.postalCode,
-      roadAddress: values.roadAddress,
-      detailAddress: values.detailAddress,
-      deliveryRequest: values.deliveryRequest,
-    };
-
-    try {
-      const url = buildApiUrl("/api/orders/address");
-      console.log("[AddressModal] POST /api/orders/address:", url);
-
-      const res = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-        credentials: "include",
-      });
-
-      if (!res.ok) {
-        throw new Error("배송지 등록 요청 실패");
-      }
-
-      const json = (await res.json()) as OrdersAddressApiResponse;
-
-      if (json.success && json.data) {
-        onSaved(json.data);
-
-        // ✅ addressId를 localStorage에 저장
-        window.localStorage.setItem("buylink_addressId", String(json.data.id));
-        window.localStorage.setItem("buylink_receiverName", json.data.receiverName);
-        window.localStorage.setItem("buylink_receiverPhone", json.data.phone);
-
-      } else {
-        alert(json.error ?? "배송지 등록에 실패했습니다.");
-      }
-    } catch (e) {
-      console.error(e);
-      alert("배송지 등록 중 문제가 발생했습니다.");
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
-      <div className="bg-white w-full max-w-lg rounded-2xl shadow-xl p-6 space-y-4">
-        <h2 className="text-lg font-semibold text-[#111111]">배송지 등록</h2>
-
-        <input
-          value={receiverName}
-          onChange={(e) => setReceiverName(e.target.value)}
-          placeholder="이름"
-          className="w-full border rounded-lg px-4 py-2 text-sm"
-        />
-
-        <input
-          value={phone}
-          onChange={(e) => setPhone(e.target.value)}
-          placeholder="전화번호"
-          className="w-full border rounded-lg px-4 py-2 text-sm"
-        />
-
-        <div className="flex gap-2">
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="주소 검색"
-            className="flex-1 border rounded-lg px-4 py-2 text-sm"
-          />
-          <button
-            onClick={handleSearch}
-            className="px-4 py-2 bg-[#ffe788] rounded-lg text-xs font-semibold"
-          >
-            검색
-          </button>
-        </div>
-
-        {searchResults.length > 0 && (
-          <div className="border rounded-lg p-3 space-y-2 max-h-40 overflow-y-auto">
-            {searchResults.map((addr, idx) => (
               <button
-                key={idx}
-                onClick={() => {
-                  setRoadAddress(addr.roadAddress);
-                  setPostalCode(addr.zipCode);
-                }}
-                className="w-full text-left p-2 border rounded hover:bg-gray-50 text-sm"
+                onClick={handleDeleteSelected}
+                className="text-sm underline text-[#111111] hover:text-[#505050]"
               >
-                {addr.roadAddress} ({addr.zipCode})
+                선택 상품 삭제
               </button>
-            ))}
+            </div>
           </div>
-        )}
 
-        <input
-          value={roadAddress}
-          readOnly
-          placeholder="도로명 주소"
-          className="w-full border rounded-lg px-4 py-2 text-sm"
-        />
+          {/* 상품 리스트 */}
+          <div className="space-y-6 lg:overflow-y-auto lg:max-h-[60vh] lg:pr-1">
+            {isLoading && (
+              <p className="text-sm text-[#767676] px-2 py-4">
+                장바구니를 불러오는 중입니다...
+              </p>
+            )}
 
-        <input
-          value={postalCode}
-          readOnly
-          placeholder="우편번호"
-          className="w-full border rounded-lg px-4 py-2 text-sm"
-        />
+            {!isLoading &&
+              items.map((item) => (
+                <div
+                  key={item.id}
+                  className="bg-white rounded-2xl shadow p-6 border border-gray-200"
+                >
+                  <div className="flex items-start justify-between mb-4">
+                    <input
+                      type="checkbox"
+                      className="w-5 h-5 accent-[#ffcc4c] mt-0.5"
+                      checked={item.selected}
+                      onChange={() => handleToggleOne(item.id)}
+                    />
 
-        <input
-          value={detailAddress}
-          onChange={(e) => setDetailAddress(e.target.value)}
-          placeholder="상세 주소"
-          className="w-full border rounded-lg px-4 py-2 text-sm"
-        />
+                    <button onClick={() => handleDeleteOne(item.id)}>
+                      <X className="w-5 h-5 text-gray-500" />
+                    </button>
+                  </div>
 
-        <input
-          value={deliveryRequest}
-          onChange={(e) => setDeliveryRequest(e.target.value)}
-          placeholder="요청사항"
-          className="w-full border rounded-lg px-4 py-2 text-sm"
-        />
+                  <div className="flex gap-4 mb-3">
+                    <img
+                      src={item.imageUrl}
+                      alt={item.productName}
+                      className="w-20 h-20 rounded-lg object-cover"
+                    />
+                    <div className="flex-1">
+                      <p className="font-medium text-[#111111]">
+                        {item.productName}
+                      </p>
+                      <p className="mt-1 font-semibold text-[#111111]">
+                        {item.priceKRW.toLocaleString()}원
+                      </p>
+                    </div>
+                  </div>
 
-        <div className="flex justify-end gap-2 mt-4">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 rounded-lg border text-sm"
-          >
-            닫기
-          </button>
+                  {/* 수량 */}
+                  <div className="bg-[#f7f7fb] rounded-lg p-3">
+                    <p className="text-sm text-[#505050]">
+                      <span className="font-semibold text-[#111111]">
+                        수량:{" "}
+                      </span>
+                      {item.quantity}개
+                    </p>
+                  </div>
 
-          <button
-            onClick={handleSubmit}
-            className="px-4 py-2 bg-[#ffe788] rounded-lg text-sm font-semibold"
-          >
-            배송지 등록하기
-          </button>
+                  {/* AI 예측 무게/부피 카드 */}
+                  {typeof item.aiWeightKg === "number" &&
+                    typeof item.aiVolumeM3 === "number" && (
+                      <div className="mt-2 bg-[#f7f7fb] rounded-lg p-3">
+                        <p className="text-xs text-[#505050]">
+                          <span className="font-semibold text-[#111111]">
+                            예측 무게:&nbsp;
+                          </span>
+                          {item.aiWeightKg.toFixed(2)} kg
+                        </p>
+                        <p className="mt-1 text-xs text-[#505050]">
+                          <span className="font-semibold text-[#111111]">
+                            예측 부피:&nbsp;
+                          </span>
+                          {item.aiVolumeM3.toFixed(4)} m³
+                        </p>
+                      </div>
+                    )}
+                </div>
+              ))}
+
+            {!isLoading && items.length === 0 && (
+              <p className="text-sm text-[#767676] px-2 py-4">
+                장바구니에 담긴 상품이 없습니다.
+              </p>
+            )}
+          </div>
+
+          {/* 상품 추가 버튼 */}
+          <div className="mt-4">
+            <button
+              onClick={handleGoRequestPage}
+              className="w-full bg-white rounded-2xl shadow p-6 border border-gray-200 flex flex-col items-center gap-3"
+            >
+              <div className="w-8 h-8 bg-[#ffcc4c]/20 rounded-full flex items-center justify-center">
+                <Plus className="w-5 h-5 text-[#ffcc4c]" />
+              </div>
+              <p className="text-gray-600">상품 추가하고 배송비 절약하기</p>
+            </button>
+          </div>
+        </div>
+
+        {/* 오른쪽: 옵션 + 견적 */}
+        <div className="space-y-4 lg:self-start text-sm">
+          <div className="bg-white rounded-2xl shadow p-4 border border-gray-200 space-y-4">
+            {/* 포장 옵션 */}
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <h3 className="font-semibold text-[#111111] text-sm">
+                  추가 포장 비용
+                </h3>
+                <span className="px-2 py-0.5 rounded text-[11px] bg-[#f1f1f5] text-[#111111] font-[500]">
+                  필수
+                </span>
+              </div>
+              <p className="text-xs text-[#767676] mb-2">
+                선택하지 않을 시, 일본 판매자가 보낸 패키지 그대로 발송됩니다.
+              </p>
+              <div className="space-y-1.5">
+                <label
+                  onClick={() => setExtraPackaging(true)}
+                  className="flex justify-between items-center px-3 py-2 rounded-lg cursor-pointer hover:bg-gray-50"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-4 h-4 border-2 rounded-full flex items-center justify-center">
+                      {extraPackaging && (
+                        <div className="w-2 h-2 bg-[#ffe788] rounded-full" />
+                      )}
+                    </div>
+                    <span className="text-xs text-[#505050]">추가 포장 비용</span>
+                  </div>
+                  <span className="text-xs text-[#111111] font-[500]">
+                    +2,000원
+                  </span>
+                </label>
+
+                <label
+                  onClick={() => setExtraPackaging(false)}
+                  className="flex justify-between items-center px-3 py-2 rounded-lg cursor-pointer hover:bg-gray-50"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-4 h-4 border-2 rounded-full flex items-center justify-center">
+                      {!extraPackaging && (
+                        <div className="w-2 h-2 bg-[#ffe788] rounded-full" />
+                      )}
+                    </div>
+                    <span className="text-xs text-[#505050]">필요 없어요</span>
+                  </div>
+                  <span className="text-xs text-[#111111] font-[500]">0원</span>
+                </label>
+              </div>
+            </div>
+
+            {/* 보험 옵션 */}
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <h3 className="font-semibold text-[#111111] text-sm">
+                  해외 배송 보상 보험료
+                </h3>
+                <span className="px-2 py-0.5 rounded text-[11px] bg-[#f1f1f5] text-[#111111] font-[500]">
+                  필수
+                </span>
+              </div>
+              <p className="text-xs text-[#767676] mb-2">
+                본 서비스는 선택 상품입니다. 분실·파손 시 일부 또는 전액 보상을 위한 보험료입니다.
+              </p>
+              <div className="space-y-1.5">
+                <label
+                  onClick={() => setInsurance(true)}
+                  className="flex justify-between items-center px-3 py-2 rounded-lg cursor-pointer hover:bg-gray-50"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-4 h-4 border-2 rounded-full flex items-center justify-center">
+                      {insurance && (
+                        <div className="w-2 h-2 bg-[#ffe788] rounded-full" />
+                      )}
+                    </div>
+                    <span className="text-xs text-[#505050]">보험 가입</span>
+                  </div>
+                  <span className="text-xs text-[#111111] font-[500]">
+                    +500원
+                  </span>
+                </label>
+
+                <label
+                  onClick={() => setInsurance(false)}
+                  className="flex justify-between items-center px-3 py-2 rounded-lg cursor-pointer hover:bg-gray-50"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-4 h-4 border-2 rounded-full flex items-center justify-center">
+                      {!insurance && (
+                        <div className="w-2 h-2 bg-[#ffe788] rounded-full" />
+                      )}
+                    </div>
+                    <span className="text-xs text-[#505050]">필요 없어요</span>
+                  </div>
+                  <span className="text-xs text-[#111111] font-[500]">0원</span>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <CartQuotation
+            extraPackaging={extraPackaging}
+            insurance={insurance}
+            selectedItems={selectedItems} // 🔥 선택된 상품들 전달
+            onCheckout={handleGoCheckoutPage}
+          />
         </div>
       </div>
-    </div>
-  );
-}
-
-// ========================================
-// 개인통관고유번호 모달
-// ========================================
-function CustomsCodeModal({
-  onClose,
-  onVerified,
-}: {
-  onClose: () => void;
-  onVerified: (info: CustomsInfo) => void;
-}) {
-  const [code, setCode] = useState("");
-  const [loading, setLoading] = useState(false);
-
-  const handleVerify = async () => {
-    const trimmed = code.trim();
-
-    const validationError = validateCustomsCode(trimmed);
-    if (validationError) {
-      alert(validationError);
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const url = buildApiUrl("/api/orders/customs-code/verify");
-      console.log(
-        "[CustomsCodeModal] POST /api/orders/customs-code/verify:",
-        url
-      );
-
-      const res = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code: trimmed }),
-        credentials: "include",
-      });
-
-      if (!res.ok) {
-        throw new Error("개인통관고유번호 검증 요청 실패");
-      }
-
-      const json = (await res.json()) as CustomsVerifyResponse;
-
-      if (json.isValid) {
-        onVerified({ code: trimmed, name: json.name });
-        window.localStorage.setItem("buylink_customsCode", trimmed);
-      } else {
-        alert("올바르지 않은 번호입니다. 다시 확인해주세요.");
-      }
-    } catch (e) {
-      console.error(e);
-      alert("조회 중 문제가 발생했습니다. 잠시 후 다시 시도해주세요.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
-      <div className="bg-white w-full max-w-md rounded-2xl shadow-xl p-6 space-y-4">
-        <h2 className="text-lg font-semibold text-[#111111]">
-          개인통관고유번호 조회
-        </h2>
-
-        <p className="text-xs text-[#767676]">
-          P로 시작하는 13자리 개인통관고유번호를 입력해 주세요.
-        </p>
-
-        <input
-          value={code}
-          onChange={(e) => setCode(e.target.value)}
-          placeholder="예: P123456789012"
-          className="w-full border rounded-lg px-4 py-2 text-sm"
-        />
-
-        <div className="flex justify-end gap-2 mt-4">
-          <button
-            onClick={onClose}
-            disabled={loading}
-            className="px-4 py-2 rounded-lg border text-sm disabled:opacity-60"
-          >
-            취소
-          </button>
-
-          <button
-            onClick={handleVerify}
-            disabled={loading}
-            className="px-4 py-2 bg-[#ffe788] rounded-lg text-sm font-semibold disabled:opacity-60"
-          >
-            {loading ? "조회 중..." : "확인"}
-          </button>
-        </div>
-      </div>
-    </div>
+    </motion.main>
   );
 }
