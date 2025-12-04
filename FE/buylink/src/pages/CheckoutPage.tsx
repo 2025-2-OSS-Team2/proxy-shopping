@@ -1,12 +1,16 @@
 // src/pages/CheckoutPage.tsx
 import { useEffect, useState } from "react";
 import { motion } from "motion/react";
+import sampleimg from "../assets/cuteeeee.png";
 import {
   validateAddress,
   type AddressFormValues,
   validateCustomsCode,
 } from "../utils/validation";
 
+// =============================
+// TossPayments 전역 타입 선언
+// =============================
 declare global {
   interface Window {
     TossPayments?: (clientKey: string) => {
@@ -15,8 +19,10 @@ declare global {
   }
 }
 
+// 🔹 토스페이먼츠 테스트 클라이언트 키
 const TOSS_CLIENT_KEY = "test_ck_kYG57Eba3GmNoeeGjpWErpWDOxmA";
 
+// 🔹 DEV/PROD 공통 API base URL
 const API_BASE_URL =
   import.meta.env.DEV ? import.meta.env.VITE_API_BASE_URL ?? "" : "";
 
@@ -76,6 +82,7 @@ type CustomsVerifyResponse = {
   name: string;
 };
 
+// 🔹 /api/cart GET 응답 타입
 type CartApiItem = {
   id: number;
   productName: string;
@@ -128,7 +135,7 @@ const formatKRW = (v?: number | null) => `${(v ?? 0).toLocaleString()}원`;
 // 메인 컴포넌트
 // ========================================
 export default function CheckoutPage() {
-  const [agree] = useState(false);
+  const [agree, setAgree] = useState(false);
 
   const [addressModalOpen, setAddressModalOpen] = useState(false);
   const [savedAddress, setSavedAddress] = useState<SavedAddress | null>(null);
@@ -152,22 +159,24 @@ export default function CheckoutPage() {
       try {
         // 1) 장바구니 아이템 불러오기
         const cartUrl = buildApiUrl("/api/cart");
+        console.log("[CheckoutPage] GET /api/cart:", cartUrl);
+
         const cartRes = await fetch(cartUrl, {
           method: "GET",
           credentials: "include",
         });
-  
+
         if (!cartRes.ok) {
           throw new Error("장바구니 조회 실패");
         }
-  
+
         const cartJson = (await cartRes.json()) as CartApiGetResponse;
-  
+        console.log("[CheckoutPage] /api/cart response:", cartJson);
+
         if (!cartJson.success || !cartJson.data) {
           throw new Error(cartJson.error ?? "장바구니 데이터가 없습니다.");
         }
-  
-        // ✅ 여기서 orderItems + itemIds 둘 다 만든다
+
         const mappedItems: OrderItem[] = cartJson.data.items.map((item) => ({
           id: item.id,
           productName: item.productName,
@@ -176,33 +185,39 @@ export default function CheckoutPage() {
           imageUrl: item.imageUrl,
         }));
         setOrderItems(mappedItems);
-  
-        const itemIds = mappedItems.map((item) => item.id); // ← 이게 payload의 itemIds
-  
+
+        const itemIds = mappedItems.map((item) => item.id);
+
         // 2) 견적 불러오기
         const estimateUrl = buildApiUrl("/api/cart/estimate");
+        console.log("[CheckoutPage] POST /api/cart/estimate:", estimateUrl);
+
         const estimateRes = await fetch(estimateUrl, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            itemIds,           // ✅ 장바구니에서 가져온 id 배열
+            itemIds, // 장바구니에서 가져온 id 배열
             extraPackaging: true,
             insurance: true,
           }),
           credentials: "include",
         });
-  
+
         if (!estimateRes.ok) {
           throw new Error("견적 계산 요청 실패");
         }
-  
+
         const estimateJson =
           (await estimateRes.json()) as CartEstimateApiResponse;
-  
+        console.log(
+          "[CheckoutPage] /api/cart/estimate response:",
+          estimateJson
+        );
+
         if (!estimateJson.success || !estimateJson.data) {
           throw new Error(estimateJson.error ?? "견적 계산 실패");
         }
-  
+
         setEstimate(estimateJson.data);
       } catch (e) {
         console.error("[CheckoutPage] fetchOrderAndEstimate error:", e);
@@ -212,10 +227,9 @@ export default function CheckoutPage() {
         setIsLoadingOrder(false);
       }
     };
-  
+
     fetchOrderAndEstimate();
   }, []);
-
 
   // ==============================
   // 결제 금액 (CartQuotation 스타일)
@@ -237,6 +251,13 @@ export default function CheckoutPage() {
       estimate.serviceFeeKRW +
       estimate.totalShippingFeeKRW
     : fallbackTotal;
+
+  const maskCustomsCode = (code: string) => {
+    if (code.length <= 5) return code;
+    return (
+      code.slice(0, 5) + "*".repeat(Math.max(0, code.length - 7)) + code.slice(-2)
+    );
+  };
 
   // ==============================
   // 결제 버튼 클릭
@@ -303,8 +324,131 @@ export default function CheckoutPage() {
       </h1>
 
       <div className="grid lg:grid-cols-[2fr,1fr] gap-6 lg:gap-8">
-        {/* LEFT 영역 그대로 */}
-        {/* ... (생략: 기존 배송지 / 개인통관 / 상품 리스트 / 약관 부분 그대로 유지) */}
+        {/* LEFT */}
+        <section className="space-y-6">
+          {/* 배송지 */}
+          <div className="bg-white rounded-2xl shadow p-6 border border-gray-200">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-lg font-semibold text-[#111111]">배송지</h2>
+
+              <button
+                onClick={() => setAddressModalOpen(true)}
+                className="text-sm text-[#111111] font-medium hover:underline"
+              >
+                등록
+              </button>
+            </div>
+
+            {savedAddress ? (
+              <div className="text-sm leading-relaxed text-[#111111]">
+                <p>{savedAddress.receiverName}</p>
+                <p>{savedAddress.phone}</p>
+                <p>{savedAddress.roadAddress}</p>
+                <p>{savedAddress.detailAddress}</p>
+                <p className="text-[#767676] mt-2">
+                  {savedAddress.deliveryRequest}
+                </p>
+              </div>
+            ) : (
+              <div className="border border-dashed border-[#e5e5ec] rounded-xl py-6 px-4 text-sm text-[#767676] text-center">
+                배송지를 등록해 주세요.
+              </div>
+            )}
+          </div>
+
+          {/* 개인통관고유번호 */}
+          <div className="bg-white rounded-2xl shadow p-6 border border-gray-200">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-lg font-semibold text-[#111111]">
+                개인통관고유번호
+              </h2>
+              <button
+                type="button"
+                onClick={() => setCustomsModalOpen(true)}
+                className="px-4 py-3 rounded-xl bg-[#ffe788] text-[#111111] text-sm font-semibold hover:brightness-95 transition"
+              >
+                10초만에 조회하기
+              </button>
+            </div>
+
+            {customsInfo ? (
+              <div className="text-sm leading-relaxed text-[#111111] space-y-1">
+                <p className="font-medium">{customsInfo.name} 님</p>
+                <p className="text-[#505050]">
+                  개인통관고유번호: {maskCustomsCode(customsInfo.code)}
+                </p>
+              </div>
+            ) : (
+              <div className="border border-dashed border-[#e5e5ec] rounded-xl py-5 px-4 text-sm text-[#767676]">
+                개인통관고유번호를 등록해 주세요.
+              </div>
+            )}
+          </div>
+
+          {/* 구매대행 상품 */}
+          <div className="bg-white rounded-2xl shadow p-6 border border-gray-200">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-[#111111]">
+                구매대행 상품
+              </h2>
+              <span className="text-xs text-[#767676]">
+                {orderItems.length}건
+              </span>
+            </div>
+
+            {isLoadingOrder ? (
+              <div className="border border-dashed border-[#e5e5ec] rounded-xl py-5 px-4 text-sm text-[#767676]">
+                결제할 상품 정보를 불러오는 중입니다...
+              </div>
+            ) : orderItems.length === 0 ? (
+              <div className="border border-dashed border-[#e5e5ec] rounded-xl py-5 px-4 text-sm text-[#767676]">
+                결제할 상품이 없습니다. 장바구니에서 상품을 담아주세요.
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {orderItems.map((item) => (
+                  <div
+                    key={item.id}
+                    className="flex gap-4 border border-[#f1f1f5] rounded-xl p-3"
+                  >
+                    <img
+                      src={item.imageUrl || sampleimg}
+                      alt={item.productName}
+                      className="w-16 h-16 rounded-lg object-cover"
+                    />
+                    <div className="flex-1 text-sm">
+                      <p className="font-medium text-[#111111] line-clamp-2">
+                        {item.productName}
+                      </p>
+                      <p className="mt-1 text-[#111111] font-semibold">
+                        {formatKRW(item.priceKRW)}
+                      </p>
+                      <p className="mt-1 text-xs text-[#767676]">
+                        수량: {item.quantity}개
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* 약관 */}
+          <div className="bg-white rounded-2xl shadow p-5 border border-gray-200 text-xs text-[#505050]">
+            <label className="flex items-start gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                className="mt-0.5 w-4 h-4 border-[#d1d1e0]"
+                checked={agree}
+                onChange={(e) => setAgree(e.target.checked)}
+              />
+              <span>
+                [필수] 주문한 상품의 결제, 배송, 주문정보를 확인하였으며 이에
+                동의합니다.
+              </span>
+            </label>
+          </div>
+        </section>
 
         {/* RIGHT – CartQuotation 스타일 결제 금액 */}
         <aside className="space-y-4">
@@ -318,7 +462,7 @@ export default function CheckoutPage() {
                 결제 금액을 계산 중입니다...
               </p>
             ) : !estimate ? (
-              // 견적이 없을 때 예전 방식으로 간단히 표시
+              // 견적이 없을 때 간단 표시
               <>
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
@@ -473,7 +617,7 @@ function AddressModal({
   const [searchResults, setSearchResults] = useState<AddressResult[]>([]);
   const [roadAddress, setRoadAddress] = useState("");
   const [postalCode, setPostalCode] = useState("");
-  const [detailAddress, setDetailAddress] = useState(""); // ✅ 상세주소 state
+  const [detailAddress, setDetailAddress] = useState("");
   const [deliveryRequest, setDeliveryRequest] = useState("");
 
   const handleSearch = async () => {
@@ -551,11 +695,15 @@ function AddressModal({
       if (json.success && json.data) {
         onSaved(json.data);
 
-        // ✅ addressId를 localStorage에 저장
         window.localStorage.setItem("buylink_addressId", String(json.data.id));
-        window.localStorage.setItem("buylink_receiverName", json.data.receiverName);
-        window.localStorage.setItem("buylink_receiverPhone", json.data.phone);
-
+        window.localStorage.setItem(
+          "buylink_receiverName",
+          json.data.receiverName
+        );
+        window.localStorage.setItem(
+          "buylink_receiverPhone",
+          json.data.phone
+        );
       } else {
         alert(json.error ?? "배송지 등록에 실패했습니다.");
       }
