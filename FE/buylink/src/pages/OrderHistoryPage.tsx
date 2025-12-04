@@ -406,19 +406,12 @@ export default function OrderHistoryPage() {
 
               <div className="h-px bg-[#e5e5ec]" />
 
-              {/* 최종 결제 예상 금액 / 실제 결제 금액 */}
+              {/* 최종 결제 금액 */}
               <div className="flex justify-between items-center">
                 <span className="text-sm text-[#505050]">
-                  최종 결제 예상 금액
+                  최종 결제 금액
                 </span>
                 <span className="text-lg font-bold text-[#111111]">
-                  {formatKRW(order.grandTotalKRW)}
-                </span>
-              </div>
-
-              <div className="flex justify-between items-center mt-2">
-                <span className="text-sm text-[#505050]">실제 결제 금액</span>
-                <span className="text-xl font-bold text-[#111111]">
                   {formatKRW(order.totalAmount)}
                 </span>
               </div>
