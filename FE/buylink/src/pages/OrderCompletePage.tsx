@@ -46,14 +46,13 @@ type OrderDetail = {
   extraPackagingFeeKRW: number;
   insuranceFeeKRW: number;
 
-  grandTotalKRW: number; // 최종 예상 결제 금액
-  totalAmount: number;   // 실제 결제 금액
+  grandTotalKRW: number; // 최종 예상 결제 금액 = 실제 결제 금액
+  totalAmount: number;   // 실제 결제 금액 (백엔드용)
 
   items: OrderItem[];
   shipping: ShippingInfo;
 };
 
-// 🔹 GET /api/orders/{orderId} 응답 타입
 type OrderDetailApiResponse = {
   success: boolean;
   data: OrderDetail | null;
@@ -74,7 +73,7 @@ const RECEIVER_PHONE_KEY = "buylink_receiverPhone";
 // =============================
 // 유틸 함수
 // =============================
-const formatKRW = (v: number) => `${v.toLocaleString()}원`;
+const formatKRW = (v?: number | null) => `${(v ?? 0).toLocaleString()}원`;
 
 // =============================
 // 메인 컴포넌트
@@ -84,7 +83,6 @@ export default function OrderCompletePage() {
   const params = useParams<{ orderId?: string }>();
   const location = useLocation();
 
-  // /order-complete/:orderId or navigate(..., { state: { orderId } })
   const orderIdFromParams = params.orderId;
   const locationState = location.state as
     | { orderId?: string; receiver?: string; phone?: string }
@@ -111,11 +109,11 @@ export default function OrderCompletePage() {
 
         console.log("[OrderCompletePage] effectiveOrderId:", effectiveOrderId);
 
-        // 🔹 1) state에서 receiver / phone 우선 사용
+        // 1) state에서 receiver / phone 우선
         const receiverFromState = locationState?.receiver ?? null;
         const phoneFromState = locationState?.phone ?? null;
 
-        // 🔹 2) localStorage에서 보조로 사용
+        // 2) localStorage에서 보조로 사용
         const receiverFromStorage =
           typeof window !== "undefined"
             ? window.localStorage.getItem(RECEIVER_NAME_KEY)
@@ -137,9 +135,7 @@ export default function OrderCompletePage() {
 
         let url = buildApiUrl(`/api/orders/${effectiveOrderId}`);
         const qs = searchParams.toString();
-        if (qs) {
-          url += `?${qs}`;
-        }
+        if (qs) url += `?${qs}`;
 
         console.log("[OrderCompletePage] GET /api/orders URL:", url);
 
@@ -156,20 +152,14 @@ export default function OrderCompletePage() {
 
         if (!res.ok) {
           const text = await res.text();
-          console.log(
-            "[OrderCompletePage] /api/orders error body:",
-            text
-          );
+          console.log("[OrderCompletePage] /api/orders error body:", text);
           throw new Error(
             `주문 상세 조회 실패 (status ${res.status}): ${text}`
           );
         }
 
         const json: OrderDetailApiResponse = await res.json();
-        console.log(
-          "[OrderCompletePage] /api/orders response json:",
-          json
-        );
+        console.log("[OrderCompletePage] /api/orders response json:", json);
 
         if (!json.success || !json.data) {
           throw new Error(json.error ?? "주문 상세 응답이 올바르지 않습니다.");
@@ -198,10 +188,7 @@ export default function OrderCompletePage() {
   };
 
   const handleGoHome = () => navigate("/");
-
-  const handleRequestMore = () => {
-    navigate("/request");
-  };
+  const handleRequestMore = () => navigate("/request");
 
   if (loading) {
     return (
@@ -229,24 +216,11 @@ export default function OrderCompletePage() {
     );
   }
 
-  // 🔹 안전하게 fallback 계산도 해두기
-  const productTotalFallback = order.items.reduce(
-    (sum, item) => sum + item.price * item.quantity,
-    0
-  );
-  const shippingTotalFallback =
-    order.shipping.domestic + order.shipping.international;
-
-  const productTotal =
-    typeof order.productTotalKRW === "number"
-      ? order.productTotalKRW
-      : productTotalFallback;
-  const shippingTotal =
-    typeof order.totalShippingFeeKRW === "number"
-      ? order.totalShippingFeeKRW
-      : shippingTotalFallback;
-
-  const subtotal = productTotal + order.serviceFeeKRW + shippingTotal;
+  // 🔹 CartQuotation / CheckoutPage와 동일한 방식으로 계산
+  const subtotal =
+    (order.productTotalKRW ?? 0) +
+    (order.serviceFeeKRW ?? 0) +
+    (order.totalShippingFeeKRW ?? 0);
 
   return (
     <motion.main
@@ -256,7 +230,7 @@ export default function OrderCompletePage() {
       transition={{ duration: 0.3 }}
       className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 lg:py-12 bg-white"
     >
-      {/* 타이틀 (주문내역이라고 크게) */}
+      {/* 타이틀 */}
       <h2 className="text-2xl lg:text-3xl font-bold text-[#111111] mb-2">
         주문내역
       </h2>
@@ -269,7 +243,7 @@ export default function OrderCompletePage() {
         주문내역을 확인하려면 주문번호를 복사해두세요.
       </p>
 
-      {/* 상단 주문 완료 박스 */}
+      {/* 상단 버튼 박스 */}
       <section className="bg-white rounded-2xl shadow p-6 border border-gray-200 mb-6 text-center">
         <button
           onClick={handleRequestMore}
@@ -351,6 +325,7 @@ export default function OrderCompletePage() {
             </div>
           </section>
 
+          {/* 결제 수단 */}
           <section className="bg-white rounded-2xl shadow p-6 border border-gray-200 text-sm">
             <h2 className="text-lg font-semibold text-[#111111] mb-2">
               결제 수단
@@ -361,19 +336,19 @@ export default function OrderCompletePage() {
           </section>
         </div>
 
-        {/* RIGHT – CartQuotation 스타일 결제 금액 */}
+        {/* RIGHT – CartQuotation / CheckoutPage와 완전 동일한 결제 금액 섹션 */}
         <aside className="space-y-6">
           <div className="bg-white rounded-2xl shadow p-6 border border-gray-200 text-sm space-y-3">
             <h2 className="text-lg font-semibold text-[#111111] mb-2">
               결제 금액
             </h2>
 
-            {/* 상단 합계 전까지 */}
+            {/* 1) 상품/수수료/배송비 */}
             <div className="space-y-3 text-sm">
               <div className="flex justify-between">
                 <span className="text-[#505050]">상품 금액</span>
                 <span className="text-[#111111] font-medium">
-                  {formatKRW(productTotal)}
+                  {formatKRW(order.productTotalKRW)}
                 </span>
               </div>
               <div className="flex justify-between">
@@ -385,7 +360,7 @@ export default function OrderCompletePage() {
               <div className="flex justify-between">
                 <span className="text-[#505050]">해외+국내 배송비</span>
                 <span className="text-[#111111] font-medium">
-                  {formatKRW(shippingTotal)}
+                  {formatKRW(order.totalShippingFeeKRW)}
                 </span>
               </div>
               <div className="flex justify-between">
@@ -396,7 +371,7 @@ export default function OrderCompletePage() {
 
             <div className="h-px bg-[#e5e5ec]" />
 
-            {/* 합계액 */}
+            {/* 2) 합계액 */}
             <div className="flex justify-between">
               <span className="text-[#111111] font-medium">합계액</span>
               <span className="text-[#ffcc4c] font-semibold">
@@ -404,7 +379,7 @@ export default function OrderCompletePage() {
               </span>
             </div>
 
-            {/* 수수료 / 옵션 비용 */}
+            {/* 3) 결제 수수료 / 옵션 비용 */}
             <div className="space-y-3 text-sm mt-2">
               <div className="flex justify-between">
                 <span className="text-[#505050]">+ 결제 수수료(3.4%)</span>
@@ -430,18 +405,11 @@ export default function OrderCompletePage() {
 
             <div className="h-px bg-[#e5e5ec]" />
 
-            {/* 최종 결제 예상 금액 / 실제 결제 금액 */}
+            {/* 4) 최종 결제 금액 (CartPage / CheckoutPage와 동일) */}
             <div className="flex justify-between items-center">
-              <span className="text-sm text-[#505050]">최종 결제 예상 금액</span>
+              <span className="text-sm text-[#505050]">최종 결제 금액</span>
               <span className="text-lg font-bold text-[#111111]">
                 {formatKRW(order.grandTotalKRW)}
-              </span>
-            </div>
-
-            <div className="flex justify-between items-center mt-2">
-              <span className="text-sm text-[#505050]">실제 결제 금액</span>
-              <span className="text-xl font-bold text-[#111111]">
-                {formatKRW(order.totalAmount)}
               </span>
             </div>
           </div>
