@@ -74,7 +74,7 @@ const RECEIVER_PHONE_KEY = "buylink_receiverPhone";
 // =============================
 // 유틸 함수
 // =============================
-const formatKRW = (v: number) => `${v.toLocaleString()}원`;
+const formatKRW = (v?: number | null) => `${(v ?? 0).toLocaleString()}원
 
 // =============================
 // 메인 컴포넌트
