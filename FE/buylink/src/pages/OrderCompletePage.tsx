@@ -23,17 +23,35 @@ type ShippingInfo = {
 type OrderDetail = {
   orderId: string;
   receiver: string;
-  phone: string;                // 추가
-  postalCode: string;           // 추가
-  roadAddress: string;          // 추가
-  detailAddress: string;        // 추가
-  deliveryRequest?: string;     // 추가
+  phone: string;
+  postalCode: string;
+  roadAddress: string;
+  detailAddress: string;
+  deliveryRequest?: string;
   paymentMethod: string | null;
-  totalAmount: number;
+
+  // 🔹 CartEstimate와 동일한 금액/무게 정보
+  productTotalKRW: number;
+  serviceFeeKRW: number;
+
+  volumetricWeightKg: number;
+  chargeableWeightKg: number;
+
+  emsYen: number;
+  internationalShippingKRW: number;
+  domesticShippingKRW: number;
+  totalShippingFeeKRW: number;
+
+  paymentFeeKRW: number;
+  extraPackagingFeeKRW: number;
+  insuranceFeeKRW: number;
+
+  grandTotalKRW: number; // 최종 예상 결제 금액
+  totalAmount: number;   // 실제 결제 금액
+
   items: OrderItem[];
   shipping: ShippingInfo;
 };
-
 
 // 🔹 GET /api/orders/{orderId} 응답 타입
 type OrderDetailApiResponse = {
@@ -67,7 +85,7 @@ export default function OrderCompletePage() {
   const location = useLocation();
 
   // /order-complete/:orderId or navigate(..., { state: { orderId } })
-  const orderIdFromParams = params.orderId; // string 그대로
+  const orderIdFromParams = params.orderId;
   const locationState = location.state as
     | { orderId?: string; receiver?: string; phone?: string }
     | undefined;
@@ -113,7 +131,6 @@ export default function OrderCompletePage() {
         console.log("[OrderCompletePage] receiverForQuery:", receiverForQuery);
         console.log("[OrderCompletePage] phoneForQuery:", phoneForQuery);
 
-        // 쿼리스트링 구성
         const searchParams = new URLSearchParams();
         if (receiverForQuery) searchParams.append("receiver", receiverForQuery);
         if (phoneForQuery) searchParams.append("phone", phoneForQuery);
@@ -143,7 +160,6 @@ export default function OrderCompletePage() {
             "[OrderCompletePage] /api/orders error body:",
             text
           );
-          // 🔹 서버에서 내려준 메시지를 그대로 에러에 포함
           throw new Error(
             `주문 상세 조회 실패 (status ${res.status}): ${text}`
           );
@@ -213,12 +229,24 @@ export default function OrderCompletePage() {
     );
   }
 
-  const productTotal = order.items.reduce(
+  // 🔹 안전하게 fallback 계산도 해두기
+  const productTotalFallback = order.items.reduce(
     (sum, item) => sum + item.price * item.quantity,
     0
   );
-  const shippingTotal = order.shipping.domestic + order.shipping.international;
-  const discount = productTotal + shippingTotal - order.totalAmount;
+  const shippingTotalFallback =
+    order.shipping.domestic + order.shipping.international;
+
+  const productTotal =
+    typeof order.productTotalKRW === "number"
+      ? order.productTotalKRW
+      : productTotalFallback;
+  const shippingTotal =
+    typeof order.totalShippingFeeKRW === "number"
+      ? order.totalShippingFeeKRW
+      : shippingTotalFallback;
+
+  const subtotal = productTotal + order.serviceFeeKRW + shippingTotal;
 
   return (
     <motion.main
@@ -269,14 +297,15 @@ export default function OrderCompletePage() {
             </p>
           </section>
 
-          {/* 배송지 (명세상 address/phone은 없어서 receiver만 표시) */}
+          {/* 배송지 */}
           <section className="bg-white rounded-2xl shadow p-6 border border-gray-200 text-sm space-y-1">
             <h2 className="mb-3 text-lg font-semibold text-[#111111]">배송지</h2>
 
             <p>받는 분: {order.receiver}</p>
             <p>연락처: {order.phone}</p>
             <p>
-              주소: ({order.postalCode}) {order.roadAddress} {order.detailAddress}
+              주소: ({order.postalCode}) {order.roadAddress}{" "}
+              {order.detailAddress}
             </p>
 
             {order.deliveryRequest && (
@@ -332,39 +361,85 @@ export default function OrderCompletePage() {
           </section>
         </div>
 
-        {/* RIGHT Summary */}
+        {/* RIGHT – CartQuotation 스타일 결제 금액 */}
         <aside className="space-y-6">
           <div className="bg-white rounded-2xl shadow p-6 border border-gray-200 text-sm space-y-3">
             <h2 className="text-lg font-semibold text-[#111111] mb-2">
               결제 금액
             </h2>
+
+            {/* 상단 합계 전까지 */}
+            <div className="space-y-3 text-sm">
+              <div className="flex justify-between">
+                <span className="text-[#505050]">상품 금액</span>
+                <span className="text-[#111111] font-medium">
+                  {formatKRW(productTotal)}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-[#505050]">대행 수수료</span>
+                <span className="text-[#111111] font-medium">
+                  {formatKRW(order.serviceFeeKRW)}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-[#505050]">해외+국내 배송비</span>
+                <span className="text-[#111111] font-medium">
+                  {formatKRW(shippingTotal)}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-[#505050]">합배송비</span>
+                <span className="text-[#111111] font-medium">-</span>
+              </div>
+            </div>
+
+            <div className="h-px bg-[#e5e5ec]" />
+
+            {/* 합계액 */}
             <div className="flex justify-between">
-              <span className="text-[#505050]">상품 금액</span>
-              <span className="text-[#111111] font-medium">
-                {formatKRW(productTotal)}
+              <span className="text-[#111111] font-medium">합계액</span>
+              <span className="text-[#ffcc4c] font-semibold">
+                {formatKRW(subtotal)}
               </span>
             </div>
 
-            <div className="flex justify-between">
-              <span className="text-[#505050]">할인 금액</span>
-              <span className="text-[#ff4c4c] font-medium">
-                {discount > 0
-                  ? `-${Math.abs(discount).toLocaleString()}원`
-                  : "0원"}
-              </span>
+            {/* 수수료 / 옵션 비용 */}
+            <div className="space-y-3 text-sm mt-2">
+              <div className="flex justify-between">
+                <span className="text-[#505050]">+ 결제 수수료(3.4%)</span>
+                <span className="text-[#111111] font-medium">
+                  {formatKRW(order.paymentFeeKRW)}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-[#505050]">+ [선택] 추가 포장 비용</span>
+                <span className="text-[#111111] font-medium">
+                  {formatKRW(order.extraPackagingFeeKRW)}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-[#505050]">
+                  + [선택] 해외 배송 보상 보험료
+                </span>
+                <span className="text-[#111111] font-medium">
+                  {formatKRW(order.insuranceFeeKRW)}
+                </span>
+              </div>
             </div>
 
-            <div className="flex justify-between">
-              <span className="text-[#505050]">배송비</span>
-              <span className="text-[#111111] font-medium">
-                {formatKRW(shippingTotal)}
-              </span>
-            </div>
+            <div className="h-px bg-[#e5e5ec]" />
 
-            <div className="h-px bg-[#e5e5ec] my-2" />
-
+            {/* 최종 결제 예상 금액 / 실제 결제 금액 */}
             <div className="flex justify-between items-center">
-              <span className="text-sm text-[#505050]">총 결제 금액</span>
+              <span className="text-sm text-[#505050]">최종 결제 예상 금액</span>
+              <span className="text-lg font-bold text-[#111111]">
+                {formatKRW(order.grandTotalKRW)}
+              </span>
+            </div>
+
+            <div className="flex justify-between items-center mt-2">
+              <span className="text-sm text-[#505050]">실제 결제 금액</span>
               <span className="text-xl font-bold text-[#111111]">
                 {formatKRW(order.totalAmount)}
               </span>
