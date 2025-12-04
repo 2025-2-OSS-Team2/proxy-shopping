@@ -364,7 +364,13 @@ export default function CheckoutPage() {
               </h2>
               <button
                 type="button"
-                onClick={() => setCustomsModalOpen(true)}
+                onClick={() => {
+                  if (!savedAddress) {
+                    alert("배송지를 먼저 등록해 주세요.");
+                    return;
+                  }
+                  setCustomsModalOpen(true);
+                }}
                 className="px-4 py-3 rounded-xl bg-[#ffe788] text-[#111111] text-sm font-semibold hover:brightness-95 transition"
               >
                 10초만에 조회하기
