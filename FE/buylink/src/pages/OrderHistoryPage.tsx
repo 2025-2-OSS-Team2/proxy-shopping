@@ -70,7 +70,7 @@ type OrderDetail = {
 // =============================
 // 유틸 함수
 // =============================
-const formatKRW = (v: number) => `${v.toLocaleString()}원`;
+const formatKRW = (v?: number | null) => `${(v ?? 0).toLocaleString()}원`;
 
 const formatOrderDate = (iso?: string) => {
   if (!iso) return "";
@@ -171,11 +171,18 @@ export default function OrderHistoryPage() {
   // =============================
   // 금액 계산 (CartQuotation 스타일)
   // =============================
+  const productTotal =
+  order?.productTotalKRW ??
+  order?.items.reduce((sum, item) => sum + item.price * item.quantity, 0) ??
+  0;
+
+  const shippingTotal = order?.totalShippingFeeKRW ?? 0;
+  
   const subtotal =
-    order?.productTotalKRW != null && order?.serviceFeeKRW != null
-      ? order.productTotalKRW + order.serviceFeeKRW + order.totalShippingFeeKRW
-      : 0;
-  const orderDateLabel = formatOrderDate(order?.createdAt) || "";
+    (order?.productTotalKRW ?? 0) +
+    (order?.serviceFeeKRW ?? 0) +
+    (order?.totalShippingFeeKRW ?? 0);
+    const orderDateLabel = formatOrderDate(order?.createdAt) || "";
 
   // =============================
   // UI
@@ -376,7 +383,7 @@ export default function OrderHistoryPage() {
                     {formatKRW(order.extraPackagingFeeKRW)}
                   </span>
                 </div>
-                <div className="flex justify_between">
+                <div className="flex justify-between">
                   <span className="text-[#505050]">
                     + [선택] 해외 배송 보상 보험료
                   </span>
