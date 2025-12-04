@@ -16,12 +16,12 @@ const API_BASE_URL =
 const buildApiUrl = (path: string) => `${API_BASE_URL}${path}`;
 
 // =============================
-// 실제 백엔드 응답에 정확히 맞춘 타입
+// 타입 정의 (새 명세 + CartEstimate 구조)
 // =============================
 type OrderItem = {
   id: number;
   productName: string;
-  price: number; // ← priceKRW 아님
+  price: number;         // ✅ backend: price
   quantity: number;
   imageUrl?: string;
 };
@@ -32,29 +32,45 @@ type ShippingInfo = {
 };
 
 type OrderDetail = {
-  orderId: string; // ← 문자열
+  // 기본 주문 정보
+  orderId: string;
   receiver: string;
   phone: string;
-
   postalCode: string;
   roadAddress: string;
   detailAddress: string;
   deliveryRequest?: string;
-
   paymentMethod: string;
-  totalAmount: number;
 
+  // CartEstimate와 동일한 금액/무게 정보
+  productTotalKRW: number;
+  serviceFeeKRW: number;
+
+  volumetricWeightKg: number;
+  chargeableWeightKg: number;
+
+  emsYen: number;
+  internationalShippingKRW: number;
+  domesticShippingKRW: number;
+  totalShippingFeeKRW: number;
+
+  paymentFeeKRW: number;
+  extraPackagingFeeKRW: number;
+  insuranceFeeKRW: number;
+
+  grandTotalKRW: number; // 최종 예상 결제 금액
+  totalAmount: number;   // 실제 결제 금액
+
+  // 기타
   items: OrderItem[];
   shipping: ShippingInfo;
-
   createdAt?: string;
 };
 
 // =============================
-// 유틸
+// 유틸 함수
 // =============================
-const formatKRW = (v?: number) =>
-  typeof v === "number" ? `${v.toLocaleString()}원` : "0원";
+const formatKRW = (v: number) => `${v.toLocaleString()}원`;
 
 const formatOrderDate = (iso?: string) => {
   if (!iso) return "";
@@ -82,7 +98,7 @@ export default function OrderHistoryPage() {
   const [isLoading, setIsLoading] = useState(false);
 
   // =============================
-  // 주문내역 조회
+  // 주문내역 조회 핸들러
   // =============================
   const handleSearch = async () => {
     const values: OrderHistoryFormValues = {
@@ -92,8 +108,12 @@ export default function OrderHistoryPage() {
     };
 
     const errors = validateOrderHistory(values);
+
     if (hasAnyError(errors)) {
-      alert(Object.values(errors).find((msg) => !!msg));
+      const firstError = Object.values(errors).find((msg) => !!msg);
+      if (firstError) {
+        alert(firstError);
+      }
       return;
     }
 
@@ -113,7 +133,6 @@ export default function OrderHistoryPage() {
       const url = buildApiUrl(
         `/api/orders/${encodeURIComponent(trimmedOrderId)}?${params.toString()}`
       );
-
       console.log("[OrderHistoryPage] GET:", url);
 
       const res = await fetch(url, {
@@ -121,7 +140,9 @@ export default function OrderHistoryPage() {
         credentials: "include",
       });
 
-      if (!res.ok) throw new Error("주문 정보를 찾을 수 없습니다.");
+      if (!res.ok) {
+        throw new Error("주문 정보를 찾을 수 없습니다.");
+      }
 
       const json = (await res.json()) as {
         success: boolean;
@@ -148,20 +169,13 @@ export default function OrderHistoryPage() {
   const handleRequestMore = () => navigate("/request");
 
   // =============================
-  // 금액 계산
+  // 금액 계산 (CartQuotation 스타일)
   // =============================
-  const productTotal =
-    order?.items.reduce((sum, item) => sum + item.price * item.quantity, 0) ??
-    0;
-
-  const shippingTotal =
-    (order?.shipping.domestic ?? 0) +
-    (order?.shipping.international ?? 0);
-
-  const discount =
-    order ? productTotal + shippingTotal - order.totalAmount : 0;
-
-  const orderDateLabel = formatOrderDate(order?.createdAt);
+  const subtotal =
+    order?.productTotalKRW != null && order?.serviceFeeKRW != null
+      ? order.productTotalKRW + order.serviceFeeKRW + order.totalShippingFeeKRW
+      : 0;
+  const orderDateLabel = formatOrderDate(order?.createdAt) || "";
 
   // =============================
   // UI
@@ -174,7 +188,7 @@ export default function OrderHistoryPage() {
       transition={{ duration: 0.3 }}
       className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 lg:py-1 bg-white"
     >
-      {/* 검색 박스 */}
+      {/* 가운데 입력 폼 (RequestPage처럼 위/아래로 움직이게) */}
       <motion.div
         initial={{ y: "30vh", opacity: 0 }}
         animate={{
@@ -184,9 +198,10 @@ export default function OrderHistoryPage() {
         transition={{ type: "spring", stiffness: 80, damping: 15 }}
         className="w-full max-w-2xl mx-auto text-center mb-10"
       >
-        <h1 className="text-2xl font-bold mb-6">주문내역 조회하기</h1>
-
-        <div className="bg-white rounded-2xl shadow-lg border p-6 text-left">
+        <h1 className="text-2xl font-bold text-[#111111] mb-6">
+          주문내역 조회하기
+        </h1>
+        <div className="bg-white rounded-2xl shadow-lg border border-gray-300 p-6 text-left">
           <h3 className="text-lg font-semibold mb-4">주문내역 확인</h3>
 
           <div className="space-y-3">
@@ -195,21 +210,21 @@ export default function OrderHistoryPage() {
               value={receiverName}
               onChange={(e) => setReceiverName(e.target.value)}
               placeholder="이름"
-              className="w-full rounded-xl border px-4 py-2.5 text-sm"
+              className="w-full rounded-xl border border-[#DBDBDB] px-4 py-2.5 text-sm"
             />
             <input
               type="text"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               placeholder="전화번호 (예: 010-1234-5678)"
-              className="w-full rounded-xl border px-4 py-2.5 text-sm"
+              className="w-full rounded-xl border border-[#DBDBDB] px-4 py-2.5 text-sm"
             />
             <input
               type="text"
               value={orderIdInput}
               onChange={(e) => setOrderIdInput(e.target.value)}
               placeholder="주문번호"
-              className="w-full rounded-xl border px-4 py-2.5 text-sm"
+              className="w-full rounded-xl border border-[#DBDBDB] px-4 py-2.5 text-sm"
             />
 
             <motion.button
@@ -217,7 +232,7 @@ export default function OrderHistoryPage() {
               whileTap={{ scale: 0.97 }}
               onClick={handleSearch}
               disabled={isLoading}
-              className="mt-2 w-full px-6 py-2.5 bg-[#ffe788] rounded-xl font-medium disabled:opacity-50"
+              className="mt-2 w-full px-6 py-2.5 bg-[#ffe788] rounded-xl font-medium text-[#111111] disabled:opacity-50"
             >
               {isLoading ? "조회 중..." : "주문내역 확인하기"}
             </motion.button>
@@ -225,41 +240,45 @@ export default function OrderHistoryPage() {
         </div>
       </motion.div>
 
+      {/* order 있을 때만 상세 표시 */}
       {order && (
         <div className="grid lg:grid-cols-[2fr,1fr] gap-6 lg:gap-8">
-          {/* LEFT */}
+          {/* LEFT 영역 */}
           <div className="space-y-6">
             {/* 주문정보 */}
-            <section className="bg-white rounded-2xl shadow p-6 border text-sm space-y-2">
-              <p className="text-gray-500">
+            <section className="bg-white rounded-2xl shadow p-6 border border-gray-200 text-sm space-y-2">
+              <p className="text-[#767676]">
                 주문 상세 내역 {orderDateLabel && `- ${orderDateLabel}`}
               </p>
-              <p className="text-lg font-semibold">
+
+              <p className="text-lg font-semibold text-[#111111]">
                 주문 번호 {order.orderId}
               </p>
             </section>
 
             {/* 배송지 */}
-            <section className="bg-white rounded-2xl shadow p-6 border text-sm space-y-1">
-              <h2 className="mb-3 text-lg font-semibold">배송지</h2>
-
+            <section className="bg-white rounded-2xl shadow p-6 border border-gray-200 text-sm space-y-1">
+              <h2 className="mb-3 text-lg font-semibold text-[#111111]">
+                배송지
+              </h2>
               <p>받는 분: {order.receiver}</p>
               <p>연락처: {order.phone}</p>
               <p>
-                주소: [{order.postalCode}] {order.roadAddress}{" "}
+                주소: ({order.postalCode}) {order.roadAddress}{" "}
                 {order.detailAddress}
               </p>
-
               {order.deliveryRequest && (
                 <p>요청사항: {order.deliveryRequest}</p>
               )}
             </section>
 
-            {/* 상품 리스트 */}
-            <section className="bg-white rounded-2xl shadow p-6 border">
+            {/* 구매대행 상품 */}
+            <section className="bg-white rounded-2xl shadow p-6 border border-gray-200">
               <div className="flex items-center justify-between mb-3">
-                <h2 className="text-lg font-semibold">구매대행 상품</h2>
-                <span className="text-xs text-gray-500">
+                <h2 className="text-lg font-semibold text-[#111111]">
+                  구매대행 상품
+                </h2>
+                <span className="text-xs text-[#767676]">
                   {order.items.length}건
                 </span>
               </div>
@@ -268,7 +287,7 @@ export default function OrderHistoryPage() {
                 {order.items.map((item) => (
                   <div
                     key={item.id}
-                    className="flex gap-4 border rounded-xl p-3"
+                    className="flex gap-4 border border-[#f1f1f5] rounded-xl p-3"
                   >
                     <img
                       src={item.imageUrl ?? sampleimg}
@@ -276,13 +295,13 @@ export default function OrderHistoryPage() {
                       className="w-16 h-16 rounded-lg object-cover"
                     />
                     <div className="flex-1 text-sm">
-                      <p className="font-medium line-clamp-2">
+                      <p className="font-medium text-[#111111] line-clamp-2">
                         {item.productName}
                       </p>
-                      <p className="mt-1 font-semibold">
+                      <p className="mt-1 text-[#111111] font-semibold">
                         {formatKRW(item.price)}
                       </p>
-                      <p className="mt-1 text-xs text-gray-500">
+                      <p className="mt-1 text-xs text-[#767676]">
                         수량: {item.quantity}개
                       </p>
                     </div>
@@ -292,41 +311,96 @@ export default function OrderHistoryPage() {
             </section>
 
             {/* 결제 수단 */}
-            <section className="bg-white rounded-2xl shadow p-6 border text-sm">
-              <h2 className="text-lg font-semibold mb-2">결제 수단</h2>
-              <p>{order.paymentMethod}</p>
+            <section className="bg-white rounded-2xl shadow p-6 border border-gray-200 text-sm">
+              <h2 className="text-lg font-semibold text-[#111111] mb-2">
+                결제 수단
+              </h2>
+              <p className="text-[#111111]">{order.paymentMethod}</p>
             </section>
           </div>
 
-          {/* RIGHT 결제 요약 */}
+          {/* RIGHT Summary – CartQuotation 스타일로 재구성 */}
           <aside className="space-y-6">
-            <div className="bg-white rounded-2xl shadow p-6 border text-sm space-y-3">
-              <h2 className="text-lg font-semibold mb-2">결제 금액</h2>
+            <div className="bg-white rounded-2xl shadow p-6 border border-gray-200 text-sm space-y-3">
+              <h2 className="text-lg font-semibold text-[#111111] mb-2">
+                결제 금액
+              </h2>
 
-              <div className="flex justify-between">
-                <span className="text-gray-600">상품 금액</span>
-                <span className="font-medium">{formatKRW(productTotal)}</span>
+              {/* 상단 합계 전까지 */}
+              <div className="space-y-3 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-[#505050]">상품 금액</span>
+                  <span className="text-[#111111] font-medium">
+                    {formatKRW(order.productTotalKRW)}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-[#505050]">대행 수수료</span>
+                  <span className="text-[#111111] font-medium">
+                    {formatKRW(order.serviceFeeKRW)}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-[#505050]">해외+국내 배송비</span>
+                  <span className="text-[#111111] font-medium">
+                    {formatKRW(order.totalShippingFeeKRW)}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-[#505050]">합배송비</span>
+                  <span className="text-[#111111] font-medium">-</span>
+                </div>
               </div>
 
+              <div className="h-px bg-[#e5e5ec]" />
+
+              {/* 합계액 */}
               <div className="flex justify-between">
-                <span className="text-gray-600">할인 금액</span>
-                <span className="font-medium text-red-500">
-                  {discount > 0
-                    ? `-${Math.abs(discount).toLocaleString()}원`
-                    : "0원"}
+                <span className="text-[#111111] font-medium">합계액</span>
+                <span className="text-[#ffcc4c] font-semibold">
+                  {formatKRW(subtotal)}
                 </span>
               </div>
 
-              <div className="flex justify-between">
-                <span className="text-gray-600">배송비</span>
-                <span className="font-medium">{formatKRW(shippingTotal)}</span>
+              {/* 수수료 / 옵션 비용 */}
+              <div className="space-y-3 text-sm mt-2">
+                <div className="flex justify-between">
+                  <span className="text-[#505050]">+ 결제 수수료(3.4%)</span>
+                  <span className="text-[#111111] font-medium">
+                    {formatKRW(order.paymentFeeKRW)}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-[#505050]">+ [선택] 추가 포장 비용</span>
+                  <span className="text-[#111111] font-medium">
+                    {formatKRW(order.extraPackagingFeeKRW)}
+                  </span>
+                </div>
+                <div className="flex justify_between">
+                  <span className="text-[#505050]">
+                    + [선택] 해외 배송 보상 보험료
+                  </span>
+                  <span className="text-[#111111] font-medium">
+                    {formatKRW(order.insuranceFeeKRW)}
+                  </span>
+                </div>
               </div>
 
-              <div className="h-px bg-gray-200 my-2" />
+              <div className="h-px bg-[#e5e5ec]" />
 
+              {/* 최종 결제 예상 금액 / 실제 결제 금액 */}
               <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-600">총 결제 금액</span>
-                <span className="text-xl font-bold">
+                <span className="text-sm text-[#505050]">
+                  최종 결제 예상 금액
+                </span>
+                <span className="text-lg font-bold text-[#111111]">
+                  {formatKRW(order.grandTotalKRW)}
+                </span>
+              </div>
+
+              <div className="flex justify-between items-center mt-2">
+                <span className="text-sm text-[#505050]">실제 결제 금액</span>
+                <span className="text-xl font-bold text-[#111111]">
                   {formatKRW(order.totalAmount)}
                 </span>
               </div>
@@ -335,14 +409,14 @@ export default function OrderHistoryPage() {
             <div className="flex flex-col gap-3">
               <button
                 onClick={handleRequestMore}
-                className="w-full py-5 rounded-xl bg-[#ffe788] text-sm font-semibold hover:brightness-95"
+                className="w-full py-5 rounded-xl bg-[#ffe788] text-[#111111] text-sm font-semibold hover:brightness-95"
               >
                 추가로 구매대행 요청
               </button>
 
               <button
                 onClick={handleGoHome}
-                className="w-full py-5 rounded-xl border bg-white text-sm font-medium hover:bg-gray-50"
+                className="w-full py-5 rounded-xl border border-[#e5e5ec] bg-white text-[#505050] text-sm font-medium hover:bg-[#f9f9fb]"
               >
                 홈으로 가기
               </button>
