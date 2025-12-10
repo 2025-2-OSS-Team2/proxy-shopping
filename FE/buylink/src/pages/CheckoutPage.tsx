@@ -1,4 +1,3 @@
-// src/pages/CheckoutPage.tsx
 import { useEffect, useState } from "react";
 import { motion } from "motion/react";
 import sampleimg from "../assets/cuteeeee.png";
@@ -8,9 +7,6 @@ import {
   validateCustomsCode,
 } from "../utils/validation";
 
-// =============================
-// TossPayments 전역 타입 선언
-// =============================
 declare global {
   interface Window {
     TossPayments?: (clientKey: string) => {
@@ -19,18 +15,14 @@ declare global {
   }
 }
 
-// 🔹 토스페이먼츠 테스트 클라이언트 키
+// 토스페이먼츠 테스트 클라이언트 키
 const TOSS_CLIENT_KEY = "test_ck_kYG57Eba3GmNoeeGjpWErpWDOxmA";
 
-// 🔹 DEV/PROD 공통 API base URL
 const API_BASE_URL =
   import.meta.env.DEV ? import.meta.env.VITE_API_BASE_URL ?? "" : "";
 
 const buildApiUrl = (path: string) => `${API_BASE_URL}${path}`;
 
-// =============================
-// 타입
-// =============================
 type OrderItem = {
   id: number;
   productName: string;
@@ -82,7 +74,6 @@ type CustomsVerifyResponse = {
   name: string;
 };
 
-// 🔹 /api/cart GET 응답 타입
 type CartApiItem = {
   id: number;
   productName: string;
@@ -101,7 +92,6 @@ type CartApiGetResponse = {
   error: string | null;
 };
 
-// 🔹 /api/cart/estimate 응답 타입 (CartQuotation과 동일)
 type CartEstimate = {
   productTotalKRW: number;
   serviceFeeKRW: number;
@@ -131,9 +121,6 @@ type CartEstimateApiResponse = {
 
 const formatKRW = (v?: number | null) => `${(v ?? 0).toLocaleString()}원`;
 
-// ========================================
-// 메인 컴포넌트
-// ========================================
 export default function CheckoutPage() {
   const [agree, setAgree] = useState(false);
 
@@ -145,19 +132,16 @@ export default function CheckoutPage() {
 
   const [isPaying, setIsPaying] = useState(false);
 
-  // 🔹 장바구니에서 불러온 주문 상품 / 견적
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
   const [estimate, setEstimate] = useState<CartEstimate | null>(null);
   const [isLoadingOrder, setIsLoadingOrder] = useState(false);
 
-  // ==============================
   // 주문/견적 불러오기
-  // ==============================
   useEffect(() => {
     const fetchOrderAndEstimate = async () => {
       setIsLoadingOrder(true);
       try {
-        // 1) 장바구니 아이템 불러오기
+        // 1) 장바구니 아이템 불러오기 GET /api/cart
         const cartUrl = buildApiUrl("/api/cart");
         console.log("[CheckoutPage] GET /api/cart:", cartUrl);
 
@@ -231,21 +215,15 @@ export default function CheckoutPage() {
     fetchOrderAndEstimate();
   }, []);
 
-  // ==============================
-  // 결제 금액 (CartQuotation 스타일)
-  // ==============================
+  // 결제 금액
   const productTotal = orderItems.reduce(
     (sum, item) => sum + item.priceKRW * item.quantity,
     0
   );
 
-  // 견적이 없을 때 fallback (예전 방식)
   const fallbackTotal = productTotal;
-
-  // 실제 결제 금액으로 사용할 값
   const totalAmount = estimate ? estimate.grandTotalKRW : fallbackTotal;
 
-  // CartQuotation과 동일한 합계액
   const subtotal = estimate
     ? estimate.productTotalKRW +
       estimate.serviceFeeKRW +
@@ -259,9 +237,7 @@ export default function CheckoutPage() {
     );
   };
 
-  // ==============================
   // 결제 버튼 클릭
-  // ==============================
   const handlePay = async () => {
     if (!savedAddress) {
       alert("배송지를 등록해 주세요.");
@@ -456,7 +432,7 @@ export default function CheckoutPage() {
           </div>
         </section>
 
-        {/* RIGHT – CartQuotation 스타일 결제 금액 */}
+        {/* RIGHT – 결제 금액 */}
         <aside className="space-y-4">
           <div className="bg-white rounded-2xl shadow p-6 border border-gray-200 space-y-3">
             <h2 className="text-lg font-semibold text-[#111111] mb-2">
@@ -468,7 +444,6 @@ export default function CheckoutPage() {
                 결제 금액을 계산 중입니다...
               </p>
             ) : !estimate ? (
-              // 견적이 없을 때 간단 표시
               <>
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
@@ -495,7 +470,6 @@ export default function CheckoutPage() {
                 </div>
               </>
             ) : (
-              // ✅ CartQuotation과 동일한 구조
               <>
                 <div className="space-y-3 text-sm">
                   <div className="flex justify-between">
@@ -582,7 +556,7 @@ export default function CheckoutPage() {
         </aside>
       </div>
 
-      {/* 배송지 등록 MODAL */}
+      {/* 배송지 등록 모달 */}
       {addressModalOpen && (
         <AddressModal
           onClose={() => setAddressModalOpen(false)}
@@ -593,7 +567,7 @@ export default function CheckoutPage() {
         />
       )}
 
-      {/* 개인통관고유번호 MODAL */}
+      {/* 개인통관고유번호 모달 */}
       {customsModalOpen && (
         <CustomsCodeModal
           onClose={() => setCustomsModalOpen(false)}
@@ -607,9 +581,7 @@ export default function CheckoutPage() {
   );
 }
 
-// ========================================
 // 배송지 등록 모달
-// ========================================
 function AddressModal({
   onClose,
   onSaved,
@@ -818,9 +790,7 @@ function AddressModal({
   );
 }
 
-// ========================================
 // 개인통관고유번호 모달
-// ========================================
 function CustomsCodeModal({
   onClose,
   onVerified,

@@ -1,12 +1,10 @@
-/************************************************
- * 1. 배송지(주소) 유효성 검사
- ************************************************/
+// 1. 배송지(주소) 유효성 검사
 
 export type AddressFormValues = {
   receiverName: string;
   phone: string;
   roadAddress: string;
-  postalCode: string; // 주소 검색 선택 결과로 채워지는 값
+  postalCode: string;
   detailAddress: string;
   deliveryRequest: string;
 };
@@ -20,11 +18,11 @@ export type AddressFormErrors = {
   deliveryRequest?: string;
 };
 
-// 전화번호에서 숫자만 남기기 (검증용)
+  // 전화번호에서 숫자만 남기기 (검증용)
 export const normalizePhoneNumber = (value: string) =>
   value.replace(/[^0-9]/g, "");
 
-// 국내 기준: 숫자 10~11자리면 유효
+  // 국내 기준: 숫자 10~11자리면 유효
 export const isValidPhoneNumber = (phone: string) => {
   const digits = normalizePhoneNumber(phone);
   return digits.length >= 10 && digits.length <= 11;
@@ -64,24 +62,20 @@ export function validateAddress(values: AddressFormValues): AddressFormErrors {
   return errors;
 }
 
-/************************************************
- * 2. 공통: 에러 존재 여부 체크 (필요하면 사용)
- ************************************************/
+// 2. 공통: 에러 존재 여부 체크
 export const hasAnyError = (errors: Record<string, string | undefined>) =>
   Object.values(errors).some((msg) => !!msg);
 
-/************************************************
- * 3. 개인통관고유번호 유효성 검사 (P + 12자리 숫자)
- ************************************************/
+// 3. 개인통관고유번호 유효성 검사 (P + 12자리 숫자)
 
-// 형식만 true/false로 보고 싶을 때 사용
+  // 형식만 true/false로 보고 싶을 때 사용
 export const isValidCustomsCode = (rawCode: string): boolean => {
   const code = rawCode.trim();
   // P 또는 p로 시작 + 숫자 12자리 = 총 13자리
   return /^P[0-9]{12}$/i.test(code);
 };
 
-// 폼에서 에러 메시지가 필요할 때 사용
+  // 폼에서 에러 메시지가 필요할 때 사용
 export const validateCustomsCode = (rawCode: string): string | null => {
   const code = rawCode.trim();
 
@@ -96,10 +90,7 @@ export const validateCustomsCode = (rawCode: string): string | null => {
   return null;
 };
 
-/************************************************
- * 4. 주문내역 조회 폼 유효성 검사
- ************************************************/
-
+// 4. 주문내역 조회 폼 유효성 검사
 export type OrderHistoryFormValues = {
   receiverName: string;
   phone: string;
@@ -112,17 +103,17 @@ export type OrderHistoryFormErrors = {
   orderId?: string;
 };
 
-// 주문번호에서 숫자만 남기기
+  // 주문번호에서 숫자만 남기기
 export const normalizeOrderId = (value: string) =>
   value.replace(/[^0-9]/g, "");
 
-// 숫자 14자리면 유효
+  // 숫자 14자리면 유효
 export const isValidOrderId = (orderId: string) => {
   const digits = normalizeOrderId(orderId);
   return digits.length === 14;
 };
 
-// 이름 + 전화번호 + 주문번호 한 번에 검증
+  // 이름 + 전화번호 + 주문번호 한 번에 검증
 export function validateOrderHistory(
   values: OrderHistoryFormValues
 ): OrderHistoryFormErrors {

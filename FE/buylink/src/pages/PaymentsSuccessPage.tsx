@@ -1,11 +1,7 @@
-// src/pages/PaymentsSuccessPage.tsx
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { motion } from "motion/react";
 
-// -----------------------------
-// ✅ 결제 검증 응답 타입 (/api/orders/pay)
-// -----------------------------
 type OrdersPayResponseData = {
   paymentKey: string;
   orderId: string;
@@ -20,25 +16,6 @@ type OrdersPayResponse = {
   error: string | null;
 };
 
-// -----------------------------
-// ✅ 주문 생성 응답 타입 (/api/orders)
-//   POST /api/orders
-//   {
-//     "addressId": 10,
-//     "customsCode": "P123456789012",
-//     "totalAmount": 27900
-//   }
-//   =>
-//   {
-//     "success": true,
-//     "data": {
-//       "orderNumber": "20251126183012",
-//       "totalAmount": 27900,
-//       "status": "PENDING"
-//     },
-//     "error": null
-//   }
-// -----------------------------
 type CreateOrderResponseData = {
   orderNumber: string;
   totalAmount: number;
@@ -51,20 +28,14 @@ type CreateOrderResponse = {
   error: string | null;
 };
 
-// -----------------------------
-// ✅ 공통 API Base URL
-// -----------------------------
 const API_BASE_URL =
   import.meta.env.DEV ? import.meta.env.VITE_API_BASE_URL ?? "" : "";
 const buildApiUrl = (path: string) => `${API_BASE_URL}${path}`;
 
-// 🔹 localStorage 키
+// localStorage 키
 const ADDRESS_ID_KEY = "buylink_addressId";
 const CUSTOMS_CODE_KEY = "buylink_customsCode";
 
-// -----------------------------
-// ✅ 컴포넌트 본문
-// -----------------------------
 export default function PaymentsSuccessPage() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -95,9 +66,7 @@ export default function PaymentsSuccessPage() {
 
     const run = async () => {
       try {
-        // --------------------------------
-        // 1️⃣ 결제 검증 단계 (/api/orders/pay)
-        // --------------------------------
+        // 결제 검증 단계 (/api/orders/pay)
         const payUrl = buildApiUrl("/api/orders/pay");
         const payPayload = {
           orderId: orderIdFromToss,
@@ -149,7 +118,7 @@ export default function PaymentsSuccessPage() {
           );
         }
 
-        // ✅ 결제 관련 값 로그 출력
+        // 결제 관련 값 로그 출력
         console.log("[PaymentsSuccessPage] Parsed payData:", {
           paymentKey: payData.paymentKey,
           orderId: payData.orderId,
@@ -162,13 +131,10 @@ export default function PaymentsSuccessPage() {
           throw new Error("결제 승인에 실패했습니다.");
         }
 
-        // --------------------------------
-        // 2️⃣ 주문 생성 단계 (/api/orders)
-        //    새 명세:
+        // 주문 생성 단계 (/api/orders)
         //    body: { addressId, customsCode, totalAmount }
-        // --------------------------------
 
-        // 🔹 Checkout 단계에서 저장해 둔 addressId / customsCode 읽기
+        // Checkout 단계에서 저장해 둔 addressId / customsCode 읽기
         const addressIdStr =
           typeof window !== "undefined"
             ? window.localStorage.getItem(ADDRESS_ID_KEY)
@@ -196,7 +162,7 @@ export default function PaymentsSuccessPage() {
           );
         }
 
-        // 🔹 Toss 검증 금액으로 totalAmount 사용
+        // Toss 검증 금액으로 totalAmount 사용
         const totalAmountForOrder = payData.totalAmount ?? amount;
 
         const orderUrl = buildApiUrl("/api/orders");
@@ -259,9 +225,7 @@ export default function PaymentsSuccessPage() {
           throw new Error("주문 번호를 가져오지 못했습니다.");
         }
 
-        // --------------------------------
-        // 3️⃣ 주문 완료 페이지 이동
-        // --------------------------------
+        // 주문 완료 페이지 이동
         navigate("/order-complete", {
           replace: true,
           state: { orderId: finalOrderNumber },
@@ -277,9 +241,6 @@ export default function PaymentsSuccessPage() {
     run();
   }, [location.search, navigate]);
 
-  // -----------------------------
-  // ✅ UI
-  // -----------------------------
   return (
     <motion.main
       key="payments-success"

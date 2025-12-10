@@ -1,5 +1,3 @@
-// src/utils/soldOutHelpers.ts
-
 /**
  * 같은 productURL 끼리는 "앞의 1개만 품절 아님, 나머지는 품절" 규칙을 적용한다.
  * T는 최소한 productURL, isSoldOut 필드를 가진 객체면 된다.

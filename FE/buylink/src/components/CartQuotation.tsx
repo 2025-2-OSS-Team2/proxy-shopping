@@ -1,4 +1,3 @@
-// src/components/CartQuotation.tsx
 import { useEffect, useState } from "react";
 import { motion } from "motion/react";
 import { Info } from "lucide-react";
@@ -24,7 +23,7 @@ export interface CartEstimate {
   grandTotalKRW: number;
 }
 
-// CartPage에서 넘어오는 선택 상품 타입 (id만 쓰면 되니까 최소한으로)
+// CartPage에서 넘어오는 선택 상품 타입
 type SelectedCartItem = {
   id: number;
 };
@@ -33,10 +32,9 @@ interface CartQuotationProps {
   extraPackaging: boolean;
   insurance: boolean;
   onCheckout: () => void;
-  selectedItems: SelectedCartItem[]; // ✅ 선택된 아이템 목록
+  selectedItems: SelectedCartItem[]; // 선택된 아이템 목록
 }
 
-// 🔹 /api/cart/estimate 응답 모양
 type CartEstimateApiResponse = {
   success: boolean;
   data: CartEstimate | null;
@@ -45,7 +43,6 @@ type CartEstimateApiResponse = {
 
 const formatKRW = (v: number) => `${v.toLocaleString()}원`;
 
-// 🔹 DEV/PROD 공통 API base URL
 const API_BASE_URL =
   import.meta.env.DEV ? import.meta.env.VITE_API_BASE_URL ?? "" : "";
 
@@ -67,7 +64,7 @@ export default function CartQuotation({
       estimate.totalShippingFeeKRW
     : 0;
 
-  // 🔸 extraPackaging / insurance / selectedItems 바뀔 때마다 견적 API 호출
+  // extraPackaging / insurance / selectedItems 바뀔 때마다 견적 API 호출
   useEffect(() => {
     // 선택된 상품이 없으면 API 안 부르고 상태만 정리
     if (selectedItems.length === 0) {
@@ -81,7 +78,7 @@ export default function CartQuotation({
       setErrorMsg(null);
       try {
         const payload = {
-          itemIds: selectedItems.map((item) => item.id), // ✅ 선택된 id만 전송
+          itemIds: selectedItems.map((item) => item.id), //선택된 id만 전송
           extraPackaging,
           insurance,
         };

@@ -1,12 +1,8 @@
-// src/pages/OrderCompletePage.tsx
 import { useEffect, useState } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { motion } from "motion/react";
 import sampleimg from "../assets/cuteeeee.png";
 
-// =============================
-// 타입 정의 (백엔드 명세 기반)
-// =============================
 type OrderItem = {
   id: number;
   productName: string;
@@ -30,7 +26,6 @@ type OrderDetail = {
   deliveryRequest?: string;
   paymentMethod: string | null;
 
-  // 🔹 CartEstimate와 동일한 금액/무게 정보
   productTotalKRW: number;
   serviceFeeKRW: number;
 
@@ -46,8 +41,8 @@ type OrderDetail = {
   extraPackagingFeeKRW: number;
   insuranceFeeKRW: number;
 
-  grandTotalKRW: number; // 최종 예상 결제 금액 = 실제 결제 금액
-  totalAmount: number;   // 실제 결제 금액 (백엔드용)
+  grandTotalKRW: number;
+  totalAmount: number;
 
   items: OrderItem[];
   shipping: ShippingInfo;
@@ -59,25 +54,17 @@ type OrderDetailApiResponse = {
   error: string | null;
 };
 
-// =============================
-// 공통 API Base URL
-// =============================
 const API_BASE_URL =
   import.meta.env.DEV ? import.meta.env.VITE_API_BASE_URL ?? "" : "";
 const buildApiUrl = (path: string) => `${API_BASE_URL}${path}`;
 
-// 🔹 localStorage 키 (Checkout/AddressModal에서 저장했다고 가정)
+//localStorage 키
 const RECEIVER_NAME_KEY = "buylink_receiverName";
 const RECEIVER_PHONE_KEY = "buylink_receiverPhone";
 
-// =============================
 // 유틸 함수
-// =============================
 const formatKRW = (v?: number | null) => `${(v ?? 0).toLocaleString()}원`;
 
-// =============================
-// 메인 컴포넌트
-// =============================
 export default function OrderCompletePage() {
   const navigate = useNavigate();
   const params = useParams<{ orderId?: string }>();
@@ -216,7 +203,6 @@ export default function OrderCompletePage() {
     );
   }
 
-  // 🔹 CartQuotation / CheckoutPage와 동일한 방식으로 계산
   const subtotal =
     (order.productTotalKRW ?? 0) +
     (order.serviceFeeKRW ?? 0) +
@@ -336,7 +322,7 @@ export default function OrderCompletePage() {
           </section>
         </div>
 
-        {/* RIGHT – CartQuotation / CheckoutPage와 완전 동일한 결제 금액 섹션 */}
+        {/* RIGHT – 결제 금액 섹션 */}
         <aside className="space-y-6">
           <div className="bg-white rounded-2xl shadow p-6 border border-gray-200 text-sm space-y-3">
             <h2 className="text-lg font-semibold text-[#111111] mb-2">
@@ -405,7 +391,7 @@ export default function OrderCompletePage() {
 
             <div className="h-px bg-[#e5e5ec]" />
 
-            {/* 4) 최종 결제 금액 (CartPage / CheckoutPage와 동일) */}
+            {/* 4) 최종 결제 금액 */}
             <div className="flex justify-between items-center">
               <span className="text-sm text-[#505050]">최종 결제 금액</span>
               <span className="text-lg font-bold text-[#111111]">

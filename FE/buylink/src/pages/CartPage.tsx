@@ -1,4 +1,3 @@
-// src/pages/CartPage.tsx
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "motion/react";
@@ -16,7 +15,6 @@ type CartItem = {
   aiVolumeM3?: number;
 };
 
-// /api/cart GET 응답 스펙
 type CartApiItem = {
   id: number;
   productName: string;
@@ -35,7 +33,6 @@ type CartApiGetResponse = {
   error: string | null;
 };
 
-// 🔹 DEV/PROD 공통 API base URL
 const API_BASE_URL =
   import.meta.env.DEV ? import.meta.env.VITE_API_BASE_URL ?? "" : "";
 
@@ -49,12 +46,9 @@ export default function CartPage() {
   const [insurance, setInsurance] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
 
-  // 🔹 선택된 상품만 필터링
   const selectedItems = items.filter((i) => i.selected);
 
-  // --------------------------------------------------------
-  // 실제 장바구니 조회: GET /api/cart
-  // --------------------------------------------------------
+  // GET /api/cart
   useEffect(() => {
     const fetchCartFromServer = async () => {
       setIsLoading(true);
@@ -97,9 +91,7 @@ export default function CartPage() {
     fetchCartFromServer();
   }, []);
 
-  // --------------------------------------------------------
-  // 선택/토글/삭제
-  // --------------------------------------------------------
+  // 선택
   const handleToggleAll = () => {
     const allSelected = items.every((i) => i.selected);
     setItems((prev) => prev.map((item) => ({ ...item, selected: !allSelected })));
@@ -113,7 +105,7 @@ export default function CartPage() {
     );
   };
 
-  // 선택 삭제: DELETE /api/cart?ids=1,3,7
+  // 선택 삭제 DELETE /api/cart?ids=1,3,7
   const handleDeleteSelected = async () => {
     const ids = selectedItems.map((i) => i.id);
     if (ids.length === 0) {
@@ -143,7 +135,7 @@ export default function CartPage() {
     }
   };
 
-  // 개별 삭제: DELETE /api/cart?ids=1
+  // 개별 삭제 DELETE /api/cart?ids=1
   const handleDeleteOne = async (id: number) => {
     try {
       const finalUrl = buildApiUrl(`/api/cart?ids=${id}`);
@@ -168,22 +160,16 @@ export default function CartPage() {
 
   const handleGoRequestPage = () => navigate("/request");
 
-  // --------------------------------------------------------
   // 결제 버튼
-  // --------------------------------------------------------
   const handleGoCheckoutPage = () => {
     if (selectedItems.length === 0) {
       alert("결제할 상품을 선택해주세요.");
       return;
     }
 
-    // TODO: 나중에 선택된 상품 id를 state나 query로 넘겨도 됨
     navigate("/checkout");
   };
 
-  // --------------------------------------------------------
-  // UI
-  // --------------------------------------------------------
   return (
     <motion.main
       key="cart"
@@ -197,9 +183,7 @@ export default function CartPage() {
       </h1>
 
       <div className="grid lg:grid-cols-3 gap-6 lg:gap-8">
-        {/* 왼쪽: 상품 리스트 */}
         <div className="lg:col-span-2 flex flex-col lg:pr-2">
-          {/* 전체 선택 */}
           <div className="bg-white rounded-2xl shadow p-6 border border-gray-200 mb-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -275,25 +259,6 @@ export default function CartPage() {
                       {item.quantity}개
                     </p>
                   </div>
-
-                  {/* AI 예측 무게/부피 카드 */}
-                  {typeof item.aiWeightKg === "number" &&
-                    typeof item.aiVolumeM3 === "number" && (
-                      <div className="mt-2 bg-[#f7f7fb] rounded-lg p-3">
-                        <p className="text-xs text-[#505050]">
-                          <span className="font-semibold text-[#111111]">
-                            예측 무게:&nbsp;
-                          </span>
-                          {item.aiWeightKg.toFixed(2)} kg
-                        </p>
-                        <p className="mt-1 text-xs text-[#505050]">
-                          <span className="font-semibold text-[#111111]">
-                            예측 부피:&nbsp;
-                          </span>
-                          {item.aiVolumeM3.toFixed(4)} m³
-                        </p>
-                      </div>
-                    )}
                 </div>
               ))}
 
@@ -421,7 +386,7 @@ export default function CartPage() {
           <CartQuotation
             extraPackaging={extraPackaging}
             insurance={insurance}
-            selectedItems={selectedItems} // 🔥 선택된 상품들 전달
+            selectedItems={selectedItems} // 선택된 상품들 전달
             onCheckout={handleGoCheckoutPage}
           />
         </div>

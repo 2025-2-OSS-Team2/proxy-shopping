@@ -1,4 +1,3 @@
-// src/pages/OrderHistoryPage.tsx
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "motion/react";
@@ -9,19 +8,15 @@ import {
   type OrderHistoryFormValues,
 } from "../utils/validation";
 
-// 🔹 DEV/PROD 공통 API base URL
 const API_BASE_URL =
   import.meta.env.DEV ? import.meta.env.VITE_API_BASE_URL ?? "" : "";
 
 const buildApiUrl = (path: string) => `${API_BASE_URL}${path}`;
 
-// =============================
-// 타입 정의 (새 명세 + CartEstimate 구조)
-// =============================
 type OrderItem = {
   id: number;
   productName: string;
-  price: number;         // ✅ backend: price
+  price: number;
   quantity: number;
   imageUrl?: string;
 };
@@ -32,7 +27,6 @@ type ShippingInfo = {
 };
 
 type OrderDetail = {
-  // 기본 주문 정보
   orderId: string;
   receiver: string;
   phone: string;
@@ -42,7 +36,6 @@ type OrderDetail = {
   deliveryRequest?: string;
   paymentMethod: string;
 
-  // CartEstimate와 동일한 금액/무게 정보
   productTotalKRW: number;
   serviceFeeKRW: number;
 
@@ -58,18 +51,15 @@ type OrderDetail = {
   extraPackagingFeeKRW: number;
   insuranceFeeKRW: number;
 
-  grandTotalKRW: number; // 최종 예상 결제 금액
-  totalAmount: number;   // 실제 결제 금액
+  grandTotalKRW: number;
+  totalAmount: number;
 
-  // 기타
   items: OrderItem[];
   shipping: ShippingInfo;
   createdAt?: string;
 };
 
-// =============================
 // 유틸 함수
-// =============================
 const formatKRW = (v?: number | null) => `${(v ?? 0).toLocaleString()}원`;
 
 const formatOrderDate = (iso?: string) => {
@@ -82,24 +72,16 @@ const formatOrderDate = (iso?: string) => {
   return `${yy}.${mm}.${dd}`;
 };
 
-// =============================
-// 메인 컴포넌트
-// =============================
 export default function OrderHistoryPage() {
   const navigate = useNavigate();
 
-  // 🔹 검색 폼 상태
   const [receiverName, setReceiverName] = useState("");
   const [phone, setPhone] = useState("");
   const [orderIdInput, setOrderIdInput] = useState("");
 
-  // 🔹 조회 결과 상태
   const [order, setOrder] = useState<OrderDetail | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  // =============================
-  // 주문내역 조회 핸들러
-  // =============================
   const handleSearch = async () => {
     const values: OrderHistoryFormValues = {
       receiverName: receiverName.trim(),
@@ -134,8 +116,8 @@ export default function OrderHistoryPage() {
         `/api/orders/${encodeURIComponent(trimmedOrderId)}?${params.toString()}`
       );
 
-      // ✅ 요청 정보 로그
-      console.log("[OrderHistoryPage] 🔵 요청 정보", {
+      // 요청 정보 로그
+      console.log("OrderHistoryPage 요청 정보", {
         url,
         receiver: trimmedName,
         phone: trimmedPhone,
@@ -147,17 +129,8 @@ export default function OrderHistoryPage() {
         credentials: "include",
       });
 
-      // ✅ HTTP 상태 코드 로그
-      console.log("[OrderHistoryPage] 🟡 HTTP status", res.status, res.statusText);
-
-      // ✅ raw body도 한 번 찍어 보기 (JSON 파싱 전에)
-      const resClone = res.clone();
-      const rawText = await resClone.text();
-      console.log("[OrderHistoryPage] 📝 raw response body:", rawText);
-
-      if (!res.ok) {
-        throw new Error("주문 정보를 찾을 수 없습니다.");
-      }
+      // HTTP 상태 코드 로그
+      console.log("OrderHistoryPage HTTP status", res.status, res.statusText);
 
       const json = (await res.json()) as {
         success: boolean;
@@ -165,8 +138,8 @@ export default function OrderHistoryPage() {
         error: string | null;
       };
 
-      // ✅ 최종 파싱된 JSON 로그
-      console.log("[OrderHistoryPage] 🔥 파싱된 백엔드 응답:", json);
+      // 백엔드 응답 로그
+      console.log("OrderHistoryPage 백엔드 응답:", json);
 
       if (!json.success || !json.data) {
         throw new Error(json.error ?? "주문 정보를 찾을 수 없습니다.");
@@ -174,20 +147,15 @@ export default function OrderHistoryPage() {
 
       setOrder(json.data);
     } catch (e) {
-      console.error("[OrderHistoryPage] ❌ handleSearch error:", e);
+      console.error("OrderHistoryPage handleSearch error:", e);
       alert("주문 정보를 찾을 수 없어요. 입력한 정보를 다시 확인해 주세요.");
     } finally {
       setIsLoading(false);
     }
   };
 
-
   const handleGoHome = () => navigate("/");
   const handleRequestMore = () => navigate("/request");
-
-  // =============================
-  // 금액 계산 (CartQuotation 스타일)
-  // =============================
   
   const subtotal =
     (order?.productTotalKRW ?? 0) +
@@ -195,9 +163,6 @@ export default function OrderHistoryPage() {
     (order?.totalShippingFeeKRW ?? 0);
     const orderDateLabel = formatOrderDate(order?.createdAt) || "";
 
-  // =============================
-  // UI
-  // =============================
   return (
     <motion.main
       key="order-history"
@@ -206,7 +171,7 @@ export default function OrderHistoryPage() {
       transition={{ duration: 0.3 }}
       className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 lg:py-1 bg-white"
     >
-      {/* 가운데 입력 폼 (RequestPage처럼 위/아래로 움직이게) */}
+      {/* 주문정보 입력 폼*/}
       <motion.div
         initial={{ y: "30vh", opacity: 0 }}
         animate={{
@@ -337,7 +302,7 @@ export default function OrderHistoryPage() {
             </section>
           </div>
 
-          {/* RIGHT Summary – CartQuotation 스타일로 재구성 */}
+          {/* RIGHT - 결제 금액 */}
           <aside className="space-y-6">
             <div className="bg-white rounded-2xl shadow p-6 border border-gray-200 text-sm space-y-3">
               <h2 className="text-lg font-semibold text-[#111111] mb-2">

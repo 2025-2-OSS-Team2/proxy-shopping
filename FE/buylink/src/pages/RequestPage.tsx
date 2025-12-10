@@ -1,4 +1,3 @@
-// src/pages/RequestPage.tsx
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "motion/react";
@@ -6,15 +5,11 @@ import { LinkIcon, X } from "lucide-react";
 import imgSpinner from "../assets/spinner.gif";
 import { normalizeSoldOutFlags } from "../utils/soldOutHelper";
 
-// 🔹 DEV/PROD 공통 API base URL
 const API_BASE_URL =
   import.meta.env.DEV ? import.meta.env.VITE_API_BASE_URL ?? "" : "";
 
 const buildApiUrl = (path: string) => `${API_BASE_URL}${path}`;
 
-// --------------------------------------------------------
-// 타입 정의
-// --------------------------------------------------------
 export type Product = {
   productURL: string;
   productName: string;
@@ -24,7 +19,7 @@ export type Product = {
   category: string;
   imageUrls: string[];
   isSoldOut: boolean;
-  quantity: number; // 프론트 전용
+  quantity: number;
 };
 
 type ApiResponse<T> = {
@@ -40,17 +35,11 @@ export default function RequestPage() {
   const [isLoading, setIsLoading] = useState(false);
 
   const [products, setProducts] = useState<Product[]>([]);
-  // 🔹 선택 상태를 productURL 기반으로 관리
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-
-  // --------------------------------------------------------
-  // 🔗 실제 백엔드 /api/products/fetch
-  // --------------------------------------------------------
 
   type ServerProduct = Omit<Product, "quantity">;
 
-  // 1) 상품 정보 크롤링: POST /api/products/fetch
-  // 1) 상품 정보 크롤링: POST /api/products/fetch
+  // 1) 상품 정보 크롤링 POST /api/products/fetch
   const fetchProductFromServer = async (
     url: string
   ): Promise<ApiResponse<ServerProduct>> => {
@@ -66,12 +55,9 @@ export default function RequestPage() {
         credentials: "include",
       });
 
-      // 여기서 더 이상 throw 하지 말고,
-      // 항상 ApiResponse 형태로 반환
       if (!res.ok) {
         let message = "상품 정보를 불러오는데 실패했습니다.";
 
-        // 서버가 JSON으로 에러를 내려주는 경우를 최대한 활용
         try {
           const errBody = await res.json();
           if (errBody?.error && typeof errBody.error === "string") {
@@ -80,7 +66,6 @@ export default function RequestPage() {
             message = errBody.message;
           }
         } catch {
-          // response가 HTML(낫파운드 페이지)라서 json 파싱 실패해도 무시
         }
 
         return {
@@ -90,12 +75,10 @@ export default function RequestPage() {
         };
       }
 
-    // 정상 응답인 경우 그대로 JSON 파싱
     const json = (await res.json()) as ApiResponse<ServerProduct>;
     return json;
   } catch (e) {
     console.error("[fetchProductFromServer] network error:", e);
-    // 네트워크 에러 등도 전부 success:false로 귀결
     return {
       success: false,
       data: null,
@@ -104,9 +87,7 @@ export default function RequestPage() {
   }
 };
 
-  // --------------------------------------------------------
-  // URL 입력 후 “불러오기”
-  // --------------------------------------------------------
+  // URL 입력 후 상품 불러오기
   const handleLoadProduct = async () => {
     if (!urlInput.trim()) return;
     setIsLoading(true);
@@ -118,7 +99,6 @@ export default function RequestPage() {
       const fetchResult = await fetchProductFromServer(url);
 
       if (!fetchResult.success || !fetchResult.data) {
-        // ✅ 어떤 에러든 여기서만 alert로 처리
         alert(fetchResult.error ?? "상품 정보를 불러오는데 실패했습니다.");
         return;
       }
@@ -136,23 +116,20 @@ export default function RequestPage() {
       setUrlInput("");
     } catch (e) {
       console.error(e);
-      // try 블록 바깥에서 진짜 예상 못 한 에러만 잡기
       alert("상품 정보를 불러오는 중 알 수 없는 문제가 발생했습니다.");
     } finally {
       setIsLoading(false);
     }
   };
 
-  // --------------------------------------------------------
   // 삭제 / 선택 토글
-  // --------------------------------------------------------
   const handleDelete = (index: number) => {
     // 현재 렌더 기준으로 삭제 대상 productURL 구해두기
     const removed = products[index];
 
     setProducts((prev) => {
       const filtered = prev.filter((_, i) => i !== index);
-      // 🔁 삭제 후 품절 상태 재계산
+      // 삭제 후 품절 상태 재계산
       return normalizeSoldOutFlags<Product>(filtered);
     });
 
@@ -174,11 +151,9 @@ export default function RequestPage() {
     });
   };
 
-  // --------------------------------------------------------
-  // 장바구니 담기 (localStorage 버전) → 서버 /api/cart 버전
-  // --------------------------------------------------------
+  // 장바구니 담기 POST /api/cart
   const handleAddToCart = async () => {
-    // 🔹 productURL 기반 선택 + 품절 제외
+    // productURL 기반 선택 + 품절 제외
     const selectedProducts = products.filter(
       (p) => selectedIds.has(p.productURL) && !p.isSoldOut
     );
@@ -231,9 +206,6 @@ export default function RequestPage() {
     }
   };
 
-  // --------------------------------------------------------
-  // UI 렌더링
-  // --------------------------------------------------------
   return (
     <main className="min-h-screen flex flex-col items-center px-4 py-10 bg-white">
       <motion.div
@@ -276,7 +248,6 @@ export default function RequestPage() {
         </div>
       </motion.div>
 
-      {/* 🔹 상품이 아직 없을 때: URL 박스 바로 아래에 스피너 */}
       {isLoading && products.length === 0 && (
         <div className="w-full max-w-2xl flex flex-col items-center justify-center py-16 mt-60">
           <img src={imgSpinner} alt="loading" className="w-20" />
@@ -341,7 +312,6 @@ export default function RequestPage() {
             </motion.div>
           ))}
 
-          {/* 🔹 상품이 있을 때: 카드들 아래, 버튼 위에 스피너 */}
           {isLoading && (
             <div className="w-full max-w-2xl flex flex-col items-center justify-center py-16">
               <img src={imgSpinner} alt="loading" className="w-20" />
