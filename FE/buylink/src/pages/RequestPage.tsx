@@ -32,20 +32,19 @@ export default function RequestPage() {
   const navigate = useNavigate();
 
   const [urlInput, setUrlInput] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(false); // 상품 불러오기 로딩
+  const [isNavigating, setIsNavigating] = useState(false); // CartPage 이동 로딩
 
   const [products, setProducts] = useState<Product[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   type ServerProduct = Omit<Product, "quantity">;
 
-  // 1) 상품 정보 크롤링 POST /api/products/fetch
+  // 상품 정보 크롤링 API 호출
   const fetchProductFromServer = async (
     url: string
   ): Promise<ApiResponse<ServerProduct>> => {
     const finalUrl = buildApiUrl("/api/products/fetch");
-    console.log("[fetchProductFromServer] DEV:", import.meta.env.DEV);
-    console.log("[fetchProductFromServer] Final URL:", finalUrl);
 
     try {
       const res = await fetch(finalUrl, {
@@ -60,43 +59,33 @@ export default function RequestPage() {
 
         try {
           const errBody = await res.json();
-          if (errBody?.error && typeof errBody.error === "string") {
-            message = errBody.error;
-          } else if (errBody?.message && typeof errBody.message === "string") {
-            message = errBody.message;
-          }
-        } catch {
-        }
+          if (typeof errBody?.error === "string") message = errBody.error;
+          else if (typeof errBody?.message === "string") message = errBody.message;
+        } catch {}
 
-        return {
-          success: false,
-          data: null,
-          error: message,
-        };
+        return { success: false, data: null, error: message };
       }
 
-    const json = (await res.json()) as ApiResponse<ServerProduct>;
-    return json;
-  } catch (e) {
-    console.error("[fetchProductFromServer] network error:", e);
-    return {
-      success: false,
-      data: null,
-      error: "상품 정보를 불러오는데 실패했습니다.",
-    };
-  }
-};
+      const json = (await res.json()) as ApiResponse<ServerProduct>;
+      return json;
+    } catch (e) {
+      console.error("[fetchProductFromServer] network error:", e);
+      return {
+        success: false,
+        data: null,
+        error: "상품 정보를 불러오는데 실패했습니다.",
+      };
+    }
+  };
 
   // URL 입력 후 상품 불러오기
   const handleLoadProduct = async () => {
     if (!urlInput.trim()) return;
+
     setIsLoading(true);
 
     try {
-      const url = urlInput.trim();
-
-      // 1) 상품 크롤링 API 호출
-      const fetchResult = await fetchProductFromServer(url);
+      const fetchResult = await fetchProductFromServer(urlInput.trim());
 
       if (!fetchResult.success || !fetchResult.data) {
         alert(fetchResult.error ?? "상품 정보를 불러오는데 실패했습니다.");
@@ -109,32 +98,27 @@ export default function RequestPage() {
         quantity: 1,
       };
 
-      // 품절 규칙 재계산
       setProducts((prev) =>
         normalizeSoldOutFlags<Product>([...prev, newProduct])
       );
+
       setUrlInput("");
-    } catch (e) {
-      console.error(e);
-      alert("상품 정보를 불러오는 중 알 수 없는 문제가 발생했습니다.");
+    } catch {
+      alert("상품 정보를 불러오는 중 문제가 발생했습니다.");
     } finally {
       setIsLoading(false);
     }
   };
 
-  // 삭제 / 선택 토글
   const handleDelete = (index: number) => {
-    // 현재 렌더 기준으로 삭제 대상 productURL 구해두기
     const removed = products[index];
 
     setProducts((prev) => {
       const filtered = prev.filter((_, i) => i !== index);
-      // 삭제 후 품절 상태 재계산
       return normalizeSoldOutFlags<Product>(filtered);
     });
 
     if (removed) {
-      // 삭제된 상품 URL 선택 해제
       setSelectedIds((prev) => {
         const newSet = new Set(prev);
         newSet.delete(removed.productURL);
@@ -151,9 +135,8 @@ export default function RequestPage() {
     });
   };
 
-  // 장바구니 담기 POST /api/cart
+  // 장바구니 담기 + CartPage 이동 처리
   const handleAddToCart = async () => {
-    // productURL 기반 선택 + 품절 제외
     const selectedProducts = products.filter(
       (p) => selectedIds.has(p.productURL) && !p.isSoldOut
     );
@@ -165,9 +148,7 @@ export default function RequestPage() {
 
     try {
       const finalUrl = buildApiUrl("/api/cart");
-      console.log("[RequestPage] POST /api/cart (selected products):", finalUrl);
 
-      // 선택된 상품들만 순차적으로 장바구니에 추가
       for (const p of selectedProducts) {
         const payload = {
           url: p.productURL,
@@ -181,8 +162,6 @@ export default function RequestPage() {
           isSoldOut: p.isSoldOut,
         };
 
-        console.log("[RequestPage] POST /api/cart payload:", payload);
-
         const res = await fetch(finalUrl, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -190,18 +169,19 @@ export default function RequestPage() {
           credentials: "include",
         });
 
-        if (!res.ok) {
-          throw new Error("장바구니 담기 실패");
-        }
-
-        const json = await res.json();
-        console.log("[RequestPage] /api/cart response:", json);
+        if (!res.ok) throw new Error("장바구니 담기 실패");
+        await res.json();
       }
 
-      // 모두 성공하면 장바구니 페이지로 이동
-      navigate("/cart");
+      // CartPage 이동 로딩 오버레이 활성화
+      setIsNavigating(true);
+
+      // 약간 딜레이 후 페이지 이동
+      setTimeout(() => {
+        navigate("/cart");
+      }, 200);
     } catch (e) {
-      console.error("[RequestPage] handleAddToCart error:", e);
+      console.error("[handleAddToCart] error:", e);
       alert("장바구니에 담는 중 문제가 발생했습니다.");
     }
   };
@@ -222,11 +202,11 @@ export default function RequestPage() {
         </h1>
 
         {/* URL 입력 박스 */}
-        <div className="bg-white rounded-2xl shadow-lg border border-gray-300 p-6 mb-8 text-left">
+        <div className="bg-white rounded-2xl shadow-lg border p-6 mb-8 text-left">
           <h2 className="text-lg font-semibold mb-4">상품 추가</h2>
           <div className="flex gap-3">
             <div className="relative flex-1">
-              <LinkIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-[#76776  ] w-4 h-4" />
+              <LinkIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-[#767676] w-4 h-4" />
               <input
                 type="text"
                 value={urlInput}
@@ -235,6 +215,7 @@ export default function RequestPage() {
                 className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-[#DBDBDB]"
               />
             </div>
+
             <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.97 }}
@@ -248,6 +229,7 @@ export default function RequestPage() {
         </div>
       </motion.div>
 
+      {/* 첫 로딩 스피너 */}
       {isLoading && products.length === 0 && (
         <div className="w-full max-w-2xl flex flex-col items-center justify-center py-16 mt-60">
           <img src={imgSpinner} alt="loading" className="w-20" />
@@ -255,6 +237,7 @@ export default function RequestPage() {
         </div>
       )}
 
+      {/* 상품 목록 */}
       {products.length > 0 && (
         <motion.div className="w-full max-w-2xl space-y-6 mt-4">
           {products.map((p, i) => (
@@ -297,7 +280,7 @@ export default function RequestPage() {
                   <p className="font-semibold mt-1">
                     {p.priceKRW.toLocaleString()}원
                   </p>
-                  <p className="text-sm text-[#76776  ] mt-1">
+                  <p className="text-sm text-[#767676] mt-1">
                     수량: {p.quantity}개
                   </p>
                 </div>
@@ -312,15 +295,6 @@ export default function RequestPage() {
             </motion.div>
           ))}
 
-          {isLoading && (
-            <div className="w-full max-w-2xl flex flex-col items-center justify-center py-16">
-              <img src={imgSpinner} alt="loading" className="w-20" />
-              <p className="mt-4 text-[#505050] text-sm">
-                상품을 불러오고 있어요...
-              </p>
-            </div>
-          )}
-
           <motion.button
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.97 }}
@@ -330,6 +304,16 @@ export default function RequestPage() {
             장바구니에 담고 견적 확인하기
           </motion.button>
         </motion.div>
+      )}
+
+      {/* CartPage 이동 로딩 오버레이 */}
+      {isNavigating && (
+        <div className="fixed inset-0 flex flex-col items-center justify-center bg-white/70 backdrop-blur-sm z-50">
+          <img src={imgSpinner} alt="loading" className="w-20" />
+          <p className="mt-4 text-[#505050] text-sm font-medium">
+            견적 계산 중입니다...
+          </p>
+        </div>
       )}
     </main>
   );
