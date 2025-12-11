@@ -32,16 +32,14 @@ export default function RequestPage() {
   const navigate = useNavigate();
 
   const [urlInput, setUrlInput] = useState("");
-  const [isLoading, setIsLoading] = useState(false); // 상품 불러오기 로딩
-  const [isNavigating, setIsNavigating] = useState(false); // Cart 이동 로딩
-  const [isAddingToCart, setIsAddingToCart] = useState(false); // 버튼 중복 방지
+  const [isLoading, setIsLoading] = useState(false);
+  const [isNavigating, setIsNavigating] = useState(false);
 
   const [products, setProducts] = useState<Product[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   type ServerProduct = Omit<Product, "quantity">;
 
-  // 상품 정보 크롤링 POST
   const fetchProductFromServer = async (
     url: string
   ): Promise<ApiResponse<ServerProduct>> => {
@@ -57,13 +55,11 @@ export default function RequestPage() {
 
       if (!res.ok) {
         let message = "상품 정보를 불러오는데 실패했습니다.";
-
         try {
           const errBody = await res.json();
           if (typeof errBody?.error === "string") message = errBody.error;
           else if (typeof errBody?.message === "string") message = errBody.message;
         } catch {}
-
         return { success: false, data: null, error: message };
       }
 
@@ -136,18 +132,14 @@ export default function RequestPage() {
     });
   };
 
-  // 장바구니 POST 후 CartPage 이동
+  // 장바구니 담기 + CartPage 이동
   const handleAddToCart = async () => {
-    // ⭐ 누르자마자 즉시 비활성화
-    setIsAddingToCart(true);
-
     const selectedProducts = products.filter(
       (p) => selectedIds.has(p.productURL) && !p.isSoldOut
     );
 
     if (selectedProducts.length === 0) {
       alert("장바구니에 담을 상품을 선택하세요!");
-      setIsAddingToCart(false);
       return;
     }
 
@@ -178,20 +170,20 @@ export default function RequestPage() {
         await res.json();
       }
 
-      // 이동 로딩
+      // ⭐ 페이지 이동 로딩 오버레이 활성화
       setIsNavigating(true);
 
       setTimeout(() => {
         navigate("/cart");
-      }, 300);
+      }, 200);
     } catch {
       alert("장바구니에 담는 중 문제가 발생했습니다.");
-      setIsAddingToCart(false);
     }
   };
 
   return (
-    <main className="min-h-screen flex flex-col items-center px-4 py-10 bg-white">
+    <main className="min-h-screen flex flex-col items-center px-4 py-10 bg-white relative">
+
       <motion.div
         initial={{ y: "30vh", opacity: 0 }}
         animate={{
@@ -205,7 +197,7 @@ export default function RequestPage() {
           구매대행 요청하기
         </h1>
 
-        {/* URL 입력 */}
+        {/* URL 입력 박스 */}
         <div className="bg-white rounded-2xl shadow-lg border p-6 mb-8 text-left">
           <h2 className="text-lg font-semibold mb-4">상품 추가</h2>
           <div className="flex gap-3">
@@ -233,9 +225,9 @@ export default function RequestPage() {
         </div>
       </motion.div>
 
-      {/* ⭐ URL 첫 로딩 스피너 (위치 원래대로 복구: mt-40 제거) */}
+      {/* 첫 로딩 스피너 */}
       {isLoading && products.length === 0 && (
-        <div className="w-full max-w-2xl flex flex-col items-center justify-center py-16">
+        <div className="w-full max-w-2xl flex flex-col items-center justify-center py-16 mt-60">
           <img src={imgSpinner} alt="loading" className="w-20" />
           <p className="mt-4 text-[#505050]">상품을 불러오고 있어요...</p>
         </div>
@@ -304,24 +296,21 @@ export default function RequestPage() {
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.97 }}
             onClick={handleAddToCart}
-            disabled={isAddingToCart}
-            className={`w-full mt-6 py-4 rounded-xl bg-gradient-to-r from-[#ffe788] to-[#ffcc4c]
-              text-[#111] font-semibold shadow-md
-              ${isAddingToCart ? "opacity-50 cursor-not-allowed" : ""}`}
+            className="w-full mt-6 py-4 rounded-xl bg-gradient-to-r from-[#ffe788] to-[#ffcc4c] text-[#111] font-semibold shadow-md"
           >
-            {isAddingToCart ? "처리 중..." : "장바구니에 담고 견적 확인하기"}
+            장바구니에 담고 견적 확인하기
           </motion.button>
-
-          {/* 이동 로딩 */}
-          {isNavigating && (
-            <div className="flex flex-col items-center justify-center py-10">
-              <img src={imgSpinner} alt="loading" className="w-16 h-16" />
-              <p className="mt-4 text-[#505050] text-sm font-medium">
-                장바구니로 이동 중입니다...
-              </p>
-            </div>
-          )}
         </motion.div>
+      )}
+
+      {/* ⭐ CartPage 이동 로딩 스피너 (원하는 스타일 그대로) */}
+      {isNavigating && (
+        <div className="fixed inset-0 flex flex-col items-center justify-center bg-white/70 backdrop-blur-sm z-50">
+          <img src={imgSpinner} alt="loading" className="w-20" />
+          <p className="mt-4 text-[#505050] text-sm font-medium">
+            장바구니로 이동 중입니다...
+          </p>
+        </div>
       )}
     </main>
   );
