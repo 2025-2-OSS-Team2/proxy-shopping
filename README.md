@@ -10,23 +10,14 @@ https://dgu-buylink.vercel.app/
   
 </p>
 
-
-<!-- Language / Library -->
-<img src="https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=TypeScript&logoColor=white"/>
-<img src="https://img.shields.io/badge/React-61DAFB?style=for-the-badge&logo=React&logoColor=black"/>
-
-<!-- Build / Routing -->
-<img src="https://img.shields.io/badge/Vite-646CFF?style=for-the-badge&logo=Vite&logoColor=white"/>
-<img src="https://img.shields.io/badge/React_Router-CA4245?style=for-the-badge&logo=React-Router&logoColor=white"/>
-
-<!-- Style / Animation -->
-<img src="https://img.shields.io/badge/Tailwind_CSS-06B6D4?style=for-the-badge&logo=Tailwind-CSS&logoColor=white"/>
-<img src="https://img.shields.io/badge/motion%2Freact-000000?style=for-the-badge&logo=Framer&logoColor=white"/>
-
-<!-- Infra / Payments -->
-<img src="https://img.shields.io/badge/Vercel-000000?style=for-the-badge&logo=Vercel&logoColor=white"/>
-<img src="https://img.shields.io/badge/TossPayments-0055FF?style=for-the-badge&style=for-the-badge&logoColor=white"/>
-
+<p>
+  <img src="https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=TypeScript&logoColor=white"/>
+  <img src="https://img.shields.io/badge/React-61DAFB?style=for-the-badge&logo=React&logoColor=black"/>
+  <img src="https://img.shields.io/badge/Vite-646CFF?style=for-the-badge&logo=Vite&logoColor=white"/>
+  <img src="https://img.shields.io/badge/Tailwind_CSS-06B6D4?style=for-the-badge&logo=Tailwind-CSS&logoColor=white"/>
+  <img src="https://img.shields.io/badge/motion%2Freact-000000?style=for-the-badge&logo=Framer&logoColor=white"/>
+  <img src="https://img.shields.io/badge/Vercel-000000?style=for-the-badge&logo=Vercel&logoColor=white"/>
+</p>
 
 ### Backend 
 <p>
