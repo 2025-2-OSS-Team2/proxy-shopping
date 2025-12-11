@@ -132,7 +132,7 @@ export default function CartQuotation({
     const predictedWeightGrams = Math.round(
       estimate.totalActualWeightKg * 1000
     );
-    const predictedVolumeCm3 = Math.round(estimate.totalVolumeCm3 * 1_000_000);
+    const predictedVolumeCm3 = Math.round(estimate.totalVolumeM3 * 1_000_000);
 
     console.log("[CartQuotation] estimate:", estimate);
     console.log(
