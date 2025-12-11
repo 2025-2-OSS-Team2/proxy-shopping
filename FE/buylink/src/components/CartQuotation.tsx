@@ -66,11 +66,11 @@ export default function CartQuotation({
 
   // 예측 무게(g), 예측 부피(cm³) - estimate가 있을 때만 의미 있음
   const predictedWeightGrams = estimate
-    ? Math.round(estimate.totalActualWeightKg * 1000) // kg → g
-    : 0;
+  ? estimate.totalActualWeightKg * 1000
+  : 0;
 
   const predictedVolumeCm3 = estimate
-    ? Math.round(estimate.totalVolumeM3 * 1_000_000) // m³ → cm³
+    ? estimate.totalVolumeM3 * 1_000_000
     : 0;
 
   // extraPackaging / insurance / selectedItems 바뀔 때마다 견적 API 호출
