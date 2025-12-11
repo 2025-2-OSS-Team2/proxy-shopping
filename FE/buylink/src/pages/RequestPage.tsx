@@ -136,9 +136,8 @@ export default function RequestPage() {
 
   // 장바구니 담기 + 이동
   const handleAddToCart = async () => {
-    if (isAddingToCart) return; // 중복 클릭 즉시 차단
-
     setIsAddingToCart(true); // 버튼 즉시 비활성화
+    if (isAddingToCart) return; // 중복 클릭 즉시 차단
 
     const selectedProducts = products.filter(
       (p) => selectedIds.has(p.productURL) && !p.isSoldOut
