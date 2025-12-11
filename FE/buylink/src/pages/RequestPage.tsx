@@ -33,14 +33,14 @@ export default function RequestPage() {
 
   const [urlInput, setUrlInput] = useState("");
   const [isLoading, setIsLoading] = useState(false); // 상품 불러오기 로딩
-  const [isNavigating, setIsNavigating] = useState(false); // CartPage 이동 로딩
+  const [isNavigating, setIsNavigating] = useState(false); // Cart 이동 로딩
 
   const [products, setProducts] = useState<Product[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   type ServerProduct = Omit<Product, "quantity">;
 
-  // 상품 정보 크롤링 API 호출
+  // 상품 정보 크롤링 POST
   const fetchProductFromServer = async (
     url: string
   ): Promise<ApiResponse<ServerProduct>> => {
@@ -68,8 +68,7 @@ export default function RequestPage() {
 
       const json = (await res.json()) as ApiResponse<ServerProduct>;
       return json;
-    } catch (e) {
-      console.error("[fetchProductFromServer] network error:", e);
+    } catch {
       return {
         success: false,
         data: null,
@@ -85,16 +84,16 @@ export default function RequestPage() {
     setIsLoading(true);
 
     try {
-      const fetchResult = await fetchProductFromServer(urlInput.trim());
+      const result = await fetchProductFromServer(urlInput.trim());
 
-      if (!fetchResult.success || !fetchResult.data) {
-        alert(fetchResult.error ?? "상품 정보를 불러오는데 실패했습니다.");
+      if (!result.success || !result.data) {
+        alert(result.error ?? "상품 정보를 불러오는 중 오류가 발생했습니다.");
         return;
       }
 
       const newProduct: Product = {
-        ...fetchResult.data,
-        isSoldOut: fetchResult.data.isSoldOut ?? false,
+        ...result.data,
+        isSoldOut: result.data.isSoldOut ?? false,
         quantity: 1,
       };
 
@@ -110,6 +109,7 @@ export default function RequestPage() {
     }
   };
 
+  // 상품 삭제
   const handleDelete = (index: number) => {
     const removed = products[index];
 
@@ -135,7 +135,7 @@ export default function RequestPage() {
     });
   };
 
-  // 장바구니 담기 + CartPage 이동 처리
+  // 장바구니 POST 후 CartPage 이동
   const handleAddToCart = async () => {
     const selectedProducts = products.filter(
       (p) => selectedIds.has(p.productURL) && !p.isSoldOut
@@ -173,15 +173,13 @@ export default function RequestPage() {
         await res.json();
       }
 
-      // CartPage 이동 로딩 오버레이 활성화
+      // ⭐ 이동 로딩 활성화
       setIsNavigating(true);
 
-      // 약간 딜레이 후 페이지 이동
       setTimeout(() => {
         navigate("/cart");
-      }, 200);
+      }, 300);
     } catch (e) {
-      console.error("[handleAddToCart] error:", e);
       alert("장바구니에 담는 중 문제가 발생했습니다.");
     }
   };
@@ -201,7 +199,7 @@ export default function RequestPage() {
           구매대행 요청하기
         </h1>
 
-        {/* URL 입력 박스 */}
+        {/* URL 입력 */}
         <div className="bg-white rounded-2xl shadow-lg border p-6 mb-8 text-left">
           <h2 className="text-lg font-semibold mb-4">상품 추가</h2>
           <div className="flex gap-3">
@@ -231,7 +229,7 @@ export default function RequestPage() {
 
       {/* 첫 로딩 스피너 */}
       {isLoading && products.length === 0 && (
-        <div className="w-full max-w-2xl flex flex-col items-center justify-center py-16 mt-60">
+        <div className="w-full max-w-2xl flex flex-col items-center justify-center py-16 mt-40">
           <img src={imgSpinner} alt="loading" className="w-20" />
           <p className="mt-4 text-[#505050]">상품을 불러오고 있어요...</p>
         </div>
@@ -295,6 +293,7 @@ export default function RequestPage() {
             </motion.div>
           ))}
 
+          {/* 버튼 */}
           <motion.button
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.97 }}
@@ -303,17 +302,17 @@ export default function RequestPage() {
           >
             장바구니에 담고 견적 확인하기
           </motion.button>
-        </motion.div>
-      )}
 
-      {/* CartPage 이동 로딩 오버레이 */}
-      {isNavigating && (
-        <div className="fixed inset-0 flex flex-col items-center justify-center bg-white/70 backdrop-blur-sm z-50">
-          <img src={imgSpinner} alt="loading" className="w-20" />
-          <p className="mt-4 text-[#505050] text-sm font-medium">
-            견적 계산 중입니다...
-          </p>
-        </div>
+          {/* 버튼 바로 아래 로딩 표시 */}
+          {isNavigating && (
+            <div className="flex flex-col items-center justify-center py-10">
+              <img src={imgSpinner} alt="loading" className="w-16 h-16" />
+              <p className="mt-4 text-[#505050] text-sm font-medium">
+                장바구니로 이동 중입니다...
+              </p>
+            </div>
+          )}
+        </motion.div>
       )}
     </main>
   );
