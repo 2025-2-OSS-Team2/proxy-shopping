@@ -126,6 +126,31 @@ export default function CartQuotation({
     fetchEstimate();
   }, [extraPackaging, insurance, selectedItems]);
 
+  useEffect(() => {
+    if (!estimate) return;
+
+    const predictedWeightGrams = Math.round(
+      estimate.totalActualWeightKg * 1000
+    );
+    const predictedVolumeCm3 = Math.round(estimate.totalVolumeM3 * 1_000_000);
+
+    console.log("[CartQuotation] estimate:", estimate);
+    console.log(
+      "[CartQuotation] predictedWeightGrams:",
+      predictedWeightGrams,
+      "(from",
+      estimate.totalActualWeightKg,
+      "kg)"
+    );
+    console.log(
+      "[CartQuotation] predictedVolumeCm3:",
+      predictedVolumeCm3,
+      "(from",
+      estimate.totalVolumeM3,
+      "m³)"
+    );
+  }, [estimate]);
+
   return (
     <motion.div
       initial={{ opacity: 0, x: 20 }}
