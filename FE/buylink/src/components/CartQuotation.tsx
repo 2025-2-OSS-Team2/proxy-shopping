@@ -6,10 +6,10 @@ export interface CartEstimate {
   productTotalKRW: number;
   serviceFeeKRW: number;
 
-  totalActualWeightKg: number;
-  totalVolumeM3: number;
-  volumetricWeightKg: number;
-  chargeableWeightKg: number;
+  totalActualWeightG: number;
+  totalVolumeCm3: number;
+  volumetricWeightG: number;
+  chargeableWeightG: number;
 
   emsYen: number;
   internationalShippingKRW: number;
@@ -66,11 +66,11 @@ export default function CartQuotation({
 
   // 예측 무게(g), 예측 부피(cm³) - estimate가 있을 때만 의미 있음
   const predictedWeightGrams = estimate
-    ? Math.round(estimate.totalActualWeightKg * 1000) // kg → g
+    ? Math.round(estimate.totalActualWeightG * 1000) // kg → g
     : 0;
 
   const predictedVolumeCm3 = estimate
-    ? Math.round(estimate.totalVolumeM3 * 1_000_000) // m³ → cm³
+    ? Math.round(estimate.totalVolumeCm3 * 1_000_000) // m³ → cm³
     : 0;
 
   // extraPackaging / insurance / selectedItems 바뀔 때마다 견적 API 호출
@@ -130,23 +130,23 @@ export default function CartQuotation({
     if (!estimate) return;
 
     const predictedWeightGrams = Math.round(
-      estimate.totalActualWeightKg * 1000
+      estimate.totalActualWeightG * 1000
     );
-    const predictedVolumeCm3 = Math.round(estimate.totalVolumeM3 * 1_000_000);
+    const predictedVolumeCm3 = Math.round(estimate.totalVolumeCm3 * 1_000_000);
 
     console.log("[CartQuotation] estimate:", estimate);
     console.log(
       "[CartQuotation] predictedWeightGrams:",
       predictedWeightGrams,
       "(from",
-      estimate.totalActualWeightKg,
+      estimate.totalActualWeightG,
       "kg)"
     );
     console.log(
       "[CartQuotation] predictedVolumeCm3:",
       predictedVolumeCm3,
       "(from",
-      estimate.totalVolumeM3,
+      estimate.totalVolumeCm3,
       "m³)"
     );
   }, [estimate]);
