@@ -43,7 +43,7 @@ juso:
   api-key: ${JUSO_API_KEY:devU01TX0FVVEgyMDI1MTExNDA1MDE1MzExNjQ0OTI=}
 
 toss:
-  secret-key: ${TOSS_SECRET_KEY:test_sk_test}
+  secret-key: ${TOSS_SECRET_KEY:test_sk_Z61JOxRQVEm6YlzZJzn2VW0X9bAq}
   base-url: ${TOSS_BASE_URL:https://api.tosspayments.com}
 
 ai:
@@ -56,5 +56,5 @@ quotation:
 slack:
   webhook-url: ${SLACK_WEBHOOK_URL:}
   bot-token: ${SLACK_BOT_TOKEN:}
-  channel: ${SLACK_CHANNEL:}
-  enabled: ${SLACK_ENABLED:false}
+  channel: ${SLACK_CHANNEL:C0A42D18JCA}
+  enabled: ${SLACK_ENABLED:true}
