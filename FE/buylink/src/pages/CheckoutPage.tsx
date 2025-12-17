@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { motion } from "motion/react";
 import sampleimg from "../assets/cuteeeee.png";
+import CartQuotation, { type CartEstimate } from "../components/CartQuotation";
 import {
   validateAddress,
   type AddressFormValues,
@@ -14,7 +15,6 @@ type TossPaymentRequestOptions = {
   customerName: string;
   successUrl: string;
   failUrl: string;
-  // Toss 측에서 추가 필드를 요구할 수 있으므로 확장 가능하게 둠
   [key: string]: unknown;
 };
 
@@ -34,7 +34,6 @@ const TOSS_CLIENT_KEY = "test_ck_kYG57Eba3GmNoeeGjpWErpWDOxmA";
 
 const API_BASE_URL =
   import.meta.env.DEV ? import.meta.env.VITE_API_BASE_URL ?? "" : "";
-
 const buildApiUrl = (path: string) => `${API_BASE_URL}${path}`;
 
 type OrderItem = {
@@ -105,27 +104,6 @@ type CartApiGetResponse = {
   error: string | null;
 };
 
-type CartEstimate = {
-  productTotalKRW: number;
-  serviceFeeKRW: number;
-
-  totalActualWeightKg: number;
-  totalVolumeM3: number;
-  volumetricWeightKg: number;
-  chargeableWeightKg: number;
-
-  emsYen: number;
-  internationalShippingKRW: number;
-  domesticShippingKRW: number;
-  totalShippingFeeKRW: number;
-
-  paymentFeeKRW: number;
-  extraPackagingFeeKRW: number;
-  insuranceFeeKRW: number;
-
-  grandTotalKRW: number;
-};
-
 type CartEstimateApiResponse = {
   success: boolean;
   data: CartEstimate | null;
@@ -155,15 +133,17 @@ export default function CheckoutPage() {
   const [isPaying, setIsPaying] = useState(false);
 
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
-  const [estimate, setEstimate] = useState<CartEstimate | null>(null);
   const [isLoadingOrder, setIsLoadingOrder] = useState(false);
 
-  // 주문/견적 불러오기
+  // Checkout에서도 옵션을 유지(지금은 true 고정이었으니 기본값 true)
+  const [extraPackaging] = useState(true);
+  const [insurance] = useState(true);
+
+  // 주문(장바구니) 불러오기
   useEffect(() => {
-    const fetchOrderAndEstimate = async () => {
+    const fetchCart = async () => {
       setIsLoadingOrder(true);
       try {
-        // 1) 장바구니 아이템 불러오기 GET /api/cart
         const cartUrl = buildApiUrl("/api/cart");
         console.log("[CheckoutPage] GET /api/cart:", cartUrl);
 
@@ -172,9 +152,7 @@ export default function CheckoutPage() {
           credentials: "include",
         });
 
-        if (!cartRes.ok) {
-          throw new Error("장바구니 조회 실패");
-        }
+        if (!cartRes.ok) throw new Error("장바구니 조회 실패");
 
         const cartJson = (await cartRes.json()) as CartApiGetResponse;
         console.log("[CheckoutPage] /api/cart response:", cartJson);
@@ -190,64 +168,20 @@ export default function CheckoutPage() {
           quantity: 1,
           imageUrl: item.imageUrl,
         }));
+
         setOrderItems(mappedItems);
-
-        const itemIds = mappedItems.map((item) => item.id);
-
-        // 2) 견적 불러오기
-        const estimateUrl = buildApiUrl("/api/cart/estimate");
-        console.log("[CheckoutPage] POST /api/cart/estimate:", estimateUrl);
-
-        const estimateRes = await fetch(estimateUrl, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            itemIds,
-            extraPackaging: true,
-            insurance: true,
-          }),
-          credentials: "include",
-        });
-
-        if (!estimateRes.ok) {
-          throw new Error("견적 계산 요청 실패");
-        }
-
-        const estimateJson =
-          (await estimateRes.json()) as CartEstimateApiResponse;
-        console.log("[CheckoutPage] /api/cart/estimate response:", estimateJson);
-
-        if (!estimateJson.success || !estimateJson.data) {
-          throw new Error(estimateJson.error ?? "견적 계산 실패");
-        }
-
-        setEstimate(estimateJson.data);
       } catch (e: unknown) {
-        console.error("[CheckoutPage] fetchOrderAndEstimate error:", e);
+        console.error("[CheckoutPage] fetchCart error:", e);
         setOrderItems([]);
-        setEstimate(null);
       } finally {
         setIsLoadingOrder(false);
       }
     };
 
-    fetchOrderAndEstimate();
+    fetchCart();
   }, []);
 
-  // 결제 금액
-  const productTotal = orderItems.reduce(
-    (sum, item) => sum + item.priceKRW * item.quantity,
-    0
-  );
-
-  const fallbackTotal = productTotal;
-  const totalAmount = estimate ? estimate.grandTotalKRW : fallbackTotal;
-
-  const subtotal = estimate
-    ? estimate.productTotalKRW +
-      estimate.serviceFeeKRW +
-      estimate.totalShippingFeeKRW
-    : fallbackTotal;
+  const selectedItems = orderItems.map((it) => ({ id: it.id }));
 
   const maskCustomsCode = (code: string) => {
     if (code.length <= 5) return code;
@@ -258,8 +192,10 @@ export default function CheckoutPage() {
     );
   };
 
-  // 결제 버튼 클릭
+  // 결제 버튼 클릭 (CartQuotation의 버튼이 이걸 호출)
   const handlePay = async () => {
+    if (isPaying) return;
+
     if (!savedAddress) {
       alert("배송지를 등록해 주세요.");
       return;
@@ -272,14 +208,46 @@ export default function CheckoutPage() {
       alert("주문정보 확인 및 약관에 동의해 주세요.");
       return;
     }
-    if (!totalAmount || totalAmount <= 0) {
-      alert("결제할 상품 또는 금액 정보가 유효하지 않습니다.");
+    if (selectedItems.length === 0) {
+      alert("결제할 상품이 없습니다. 장바구니에서 상품을 담아주세요.");
       return;
     }
 
     setIsPaying(true);
 
     try {
+      // 1) 결제 직전 최종 금액(견적) 다시 확보 (안전)
+      const estimateUrl = buildApiUrl("/api/cart/estimate");
+      console.log("[CheckoutPage] POST /api/cart/estimate:", estimateUrl);
+
+      const estimateRes = await fetch(estimateUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          itemIds: selectedItems.map((x) => x.id),
+          extraPackaging,
+          insurance,
+        }),
+        credentials: "include",
+      });
+
+      if (!estimateRes.ok) throw new Error("견적 계산 요청 실패");
+
+      const estimateJson = (await estimateRes.json()) as CartEstimateApiResponse;
+      console.log("[CheckoutPage] /api/cart/estimate response:", estimateJson);
+
+      if (!estimateJson.success || !estimateJson.data) {
+        throw new Error(estimateJson.error ?? "견적 계산 실패");
+      }
+
+      const totalAmount = estimateJson.data.grandTotalKRW;
+
+      if (!totalAmount || totalAmount <= 0) {
+        alert("결제할 금액 정보가 유효하지 않습니다.");
+        return;
+      }
+
+      // 2) Toss 결제
       if (!window.TossPayments) {
         alert(
           "결제 모듈이 로드되지 않았습니다. index.html에 TossPayments 스크립트가 추가되어 있는지 확인해 주세요."
@@ -453,125 +421,26 @@ export default function CheckoutPage() {
           </div>
         </section>
 
-        {/* RIGHT – 결제 금액 */}
+        {/* RIGHT – CartQuotation 재사용 */}
         <aside className="space-y-4">
-          <div className="bg-white rounded-2xl shadow p-6 border border-gray-200 space-y-3">
-            <h2 className="text-lg font-semibold text-[#111111] mb-2">
-              결제 금액
-            </h2>
+          {isLoadingOrder ? (
+            <div className="bg-white rounded-2xl shadow p-6 border border-gray-200">
+              <p className="text-sm text-[#767676]">결제 금액을 계산 중입니다...</p>
+            </div>
+          ) : (
+            <CartQuotation
+              extraPackaging={extraPackaging}
+              insurance={insurance}
+              selectedItems={selectedItems}
+              onCheckout={() => void handlePay()}
+            />
+          )}
 
-            {isLoadingOrder ? (
-              <p className="text-sm text-[#767676] mt-2">
-                결제 금액을 계산 중입니다...
-              </p>
-            ) : !estimate ? (
-              <>
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-[#505050]">상품 금액</span>
-                    <span className="text-[#111111] font-medium">
-                      {formatKRW(productTotal)}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-[#505050]">배송비</span>
-                    <span className="text-[#111111] font-medium">
-                      {formatKRW(0)}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="h-px bg-[#e5e5ec] my-2" />
-
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-[#505050]">총 결제 금액</span>
-                  <span className="text-xl font-bold text-[#111111]">
-                    {formatKRW(totalAmount)}
-                  </span>
-                </div>
-              </>
-            ) : (
-              <>
-                <div className="space-y-3 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-[#505050]">상품 금액</span>
-                    <span className="text-[#111111] font-medium">
-                      {formatKRW(estimate.productTotalKRW)}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-[#505050]">대행 수수료</span>
-                    <span className="text-[#111111] font-medium">
-                      {formatKRW(estimate.serviceFeeKRW)}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-[#505050]">해외+국내 배송비</span>
-                    <span className="text-[#111111] font-medium">
-                      {formatKRW(estimate.totalShippingFeeKRW)}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-[#505050]">합배송비</span>
-                    <span className="text-[#111111] font-medium">-</span>
-                  </div>
-                </div>
-
-                <div className="h-px bg-[#e5e5ec]" />
-
-                <div className="flex justify-between">
-                  <span className="text-[#111111] font-medium">합계액</span>
-                  <span className="text-[#ffcc4c] font-semibold">
-                    {formatKRW(subtotal)}
-                  </span>
-                </div>
-
-                <div className="space-y-3 text-sm mt-2">
-                  <div className="flex justify-between">
-                    <span className="text-[#505050]">+ 결제 수수료(3.4%)</span>
-                    <span className="text-[#111111] font-medium">
-                      {formatKRW(estimate.paymentFeeKRW)}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-[#505050]">
-                      + [선택] 추가 포장 비용
-                    </span>
-                    <span className="text-[#111111] font-medium">
-                      {formatKRW(estimate.extraPackagingFeeKRW)}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-[#505050]">
-                      + [선택] 해외 배송 보상 보험료
-                    </span>
-                    <span className="text-[#111111] font-medium">
-                      {formatKRW(estimate.insuranceFeeKRW)}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="h-px bg-[#e5e5ec]" />
-
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-[#505050]">
-                    최종 결제 금액
-                  </span>
-                  <span className="text-lg font-bold text-[#111111]">
-                    {formatKRW(estimate.grandTotalKRW)}
-                  </span>
-                </div>
-              </>
-            )}
-          </div>
-
-          <button
-            onClick={handlePay}
-            disabled={isPaying || isLoadingOrder}
-            className="w-full py-4 rounded-xl bg-gradient-to-r from-[#ffe788] to-[#ffcc4c] text-[#111111] font-semibold shadow-lg hover:shadow-xl transition-all disabled:opacity-60"
-          >
-            {isPaying ? "결제 처리 중..." : `${formatKRW(totalAmount)} 결제하기`}
-          </button>
+          {isPaying && (
+            <p className="text-xs text-[#767676] text-center">
+              결제창을 여는 중입니다...
+            </p>
+          )}
         </aside>
       </div>
 
@@ -628,9 +497,7 @@ function AddressModal({
 
       const res = await fetch(url, { method: "GET", credentials: "include" });
 
-      if (!res.ok) {
-        throw new Error("주소 검색 실패");
-      }
+      if (!res.ok) throw new Error("주소 검색 실패");
 
       const json = (await res.json()) as AddressSearchApiResponse;
 
@@ -683,9 +550,7 @@ function AddressModal({
         credentials: "include",
       });
 
-      if (!res.ok) {
-        throw new Error("배송지 등록 요청 실패");
-      }
+      if (!res.ok) throw new Error("배송지 등록 요청 실패");
 
       const json = (await res.json()) as OrdersAddressApiResponse;
 
@@ -787,7 +652,10 @@ function AddressModal({
         />
 
         <div className="flex justify-end gap-2 mt-4">
-          <button onClick={onClose} className="px-4 py-2 rounded-lg border text-sm">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 rounded-lg border text-sm"
+          >
             닫기
           </button>
 
@@ -826,7 +694,10 @@ function CustomsCodeModal({
     setLoading(true);
     try {
       const url = buildApiUrl("/api/orders/customs-code/verify");
-      console.log("[CustomsCodeModal] POST /api/orders/customs-code/verify:", url);
+      console.log(
+        "[CustomsCodeModal] POST /api/orders/customs-code/verify:",
+        url
+      );
 
       const res = await fetch(url, {
         method: "POST",
@@ -835,9 +706,7 @@ function CustomsCodeModal({
         credentials: "include",
       });
 
-      if (!res.ok) {
-        throw new Error("개인통관고유번호 검증 요청 실패");
-      }
+      if (!res.ok) throw new Error("개인통관고유번호 검증 요청 실패");
 
       const json = (await res.json()) as CustomsVerifyResponse;
 
