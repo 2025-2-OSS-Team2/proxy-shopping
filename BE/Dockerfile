@@ -11,6 +11,9 @@ FROM eclipse-temurin:17-jre
 WORKDIR /app
 COPY --from=build /app/build/libs/*.jar app.jar
 
+# 견적서 저장 디렉토리 생성
+RUN mkdir -p /opt/buylink/quotation
+
 EXPOSE 17788
 ENV SPRING_PROFILES_ACTIVE=prod
 
