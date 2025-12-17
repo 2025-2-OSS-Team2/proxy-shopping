@@ -285,4 +285,73 @@ public class SlackNotificationServiceImpl implements SlackNotificationService {
         // 마지막 4자리만 보여주고 나머지는 마스킹
         return phone.substring(0, phone.length() - 4).replaceAll(".", "*") + phone.substring(phone.length() - 4);
     }
+
+    @Override
+    public void sendErrorNotification(String errorMessage, String stackTrace, String requestUri) {
+        if (!enabled) {
+            log.info("Slack 알림이 비활성화되어 있습니다.");
+            return;
+        }
+
+        boolean hasBotToken = botToken != null && !botToken.isBlank() && channel != null && !channel.isBlank();
+
+        if (!hasBotToken) {
+            log.warn("Slack Bot Token 설정이 없어 에러 알림을 보낼 수 없습니다.");
+            return;
+        }
+
+        try {
+            String message = buildErrorMessage(errorMessage, stackTrace, requestUri);
+
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("channel", channel);
+            payload.put("text", message);
+            payload.put("mrkdwn", true);
+
+            webClient.post()
+                    .uri("https://slack.com/api/chat.postMessage")
+                    .header("Authorization", "Bearer " + botToken)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .bodyValue(payload)
+                    .retrieve()
+                    .bodyToMono(String.class)
+                    .doOnSuccess(response -> log.debug("Slack 에러 알림 응답: {}", response))
+                    .doOnError(error -> log.error("Slack 에러 알림 전송 실패: {}", error.getMessage()))
+                    .subscribe();
+
+            log.info("Slack 에러 알림 전송 완료 - URI: {}", requestUri);
+        } catch (Exception e) {
+            log.error("Slack 에러 알림 전송 중 오류: {}", e.getMessage(), e);
+        }
+    }
+
+    private String buildErrorMessage(String errorMessage, String stackTrace, String requestUri) {
+        StringBuilder sb = new StringBuilder();
+
+        sb.append(":rotating_light: *서버 에러 발생*\n\n");
+
+        sb.append("*요청 정보*\n");
+        sb.append("```\n");
+        sb.append(String.format("URI: %s\n", requestUri != null ? requestUri : "N/A"));
+        sb.append(String.format("시간: %s\n", java.time.LocalDateTime.now().format(DATE_FORMAT)));
+        sb.append("```\n\n");
+
+        sb.append("*에러 메시지*\n");
+        sb.append("```\n");
+        sb.append(errorMessage != null ? errorMessage : "Unknown error");
+        sb.append("\n```\n\n");
+
+        if (stackTrace != null && !stackTrace.isBlank()) {
+            // 스택트레이스는 너무 길 수 있으므로 첫 500자만
+            String truncatedStack = stackTrace.length() > 500
+                    ? stackTrace.substring(0, 500) + "..."
+                    : stackTrace;
+            sb.append("*스택 트레이스*\n");
+            sb.append("```\n");
+            sb.append(truncatedStack);
+            sb.append("\n```\n");
+        }
+
+        return sb.toString();
+    }
 }

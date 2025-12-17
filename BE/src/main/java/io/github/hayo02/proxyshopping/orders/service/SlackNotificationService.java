@@ -10,4 +10,12 @@ public interface SlackNotificationService {
      * @param quotationFilePath 견적서 파일 경로
      */
     void sendPaymentCompleteNotification(Order order, String quotationFilePath);
+
+    /**
+     * 서버 에러 발생 시 Slack으로 알림을 전송합니다.
+     * @param errorMessage 에러 메시지
+     * @param stackTrace 스택 트레이스
+     * @param requestUri 요청 URI
+     */
+    void sendErrorNotification(String errorMessage, String stackTrace, String requestUri);
 }
