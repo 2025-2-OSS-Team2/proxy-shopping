@@ -43,7 +43,7 @@ juso:
   api-key: ${JUSO_API_KEY:devU01TX0FVVEgyMDI1MTExNDA1MDE1MzExNjQ0OTI=}
 
 toss:
-  secret-key: ${TOSS_SECRET_KEY:test_sk_Z61JOxRQVEm6YlzZJzn2VW0X9bAq}
+  secret-key: ${TOSS_SECRET_KEY}
   base-url: ${TOSS_BASE_URL:https://api.tosspayments.com}
 
 ai:
