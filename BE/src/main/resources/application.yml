@@ -1,0 +1,59 @@
+server:
+  port: 17788
+
+spring:
+  datasource:
+    url: jdbc:mariadb://localhost:3306/proxyshopping?characterEncoding=utf8mb4
+    driver-class-name: org.mariadb.jdbc.Driver
+    username: root        # 서버의 MariaDB root (또는 전용 계정)
+    password: root        # 서버에 설정한 비번으로
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+      connection-timeout: 20000
+      idle-timeout: 300000
+      max-lifetime: 1200000
+      leak-detection-threshold: 60000
+
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: none
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MariaDBDialect
+        format_sql: true
+
+  transaction:
+    default-timeout: 30
+
+  sql:
+    init:
+      mode: never
+
+python:
+  crawler:
+    enabled: true
+    base-url: http://localhost:5001
+    work-dir: /new_data/bm/buylink/BE/proxy-shopping/python-crawler
+    command: .venv/bin/python
+    health-url: http://localhost:5001/health
+
+juso:
+  api-key: "devU01TX0FVVEgyMDI1MTExNDA1MDE1MzExNjQ0OTI="
+
+toss:
+  secret-key: ${TOSS_SECRET_KEY:test_sk_test}
+  base-url: https://api.tosspayments.com
+
+ai:
+  base-url: http://localhost:7001
+
+quotation:
+  output-dir: /new_data/bm/buylink/BE/견적서
+
+slack:
+  webhook-url: ${SLACK_WEBHOOK_URL:https://hooks.slack.com/services/YOUR/WEBHOOK/URL}
+  bot-token: ${SLACK_BOT_TOKEN:your-slack-bot-token}
+  channel: ${SLACK_CHANNEL:C0A42D18JCA}
+  enabled: ${SLACK_ENABLED:true}
