@@ -60,10 +60,7 @@ jobs:
             docker run -d \
               --name buylink-be \
               --restart unless-stopped \
-              -p 17788:17788 \
+              --network host \
               -e SPRING_PROFILES_ACTIVE=prod \
-              -e DB_URL=${{ secrets.DB_URL }} \
-              -e DB_USERNAME=${{ secrets.DB_USERNAME }} \
-              -e DB_PASSWORD=${{ secrets.DB_PASSWORD }} \
               buylink-be:latest
             rm -f buylink-be.tar.gz

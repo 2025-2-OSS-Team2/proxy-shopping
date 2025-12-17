@@ -3,7 +3,7 @@ server:
 
 spring:
   datasource:
-    url: ${DB_URL:jdbc:mariadb://db:3306/proxyshopping?characterEncoding=utf8mb4}
+    url: ${DB_URL:jdbc:mariadb://localhost:3306/proxyshopping?characterEncoding=utf8mb4}
     driver-class-name: org.mariadb.jdbc.Driver
     username: ${DB_USERNAME:root}
     password: ${DB_PASSWORD:root}
@@ -34,23 +34,20 @@ spring:
 python:
   crawler:
     enabled: true
-    # docker-compose에서 python-crawler 컨테이너를 띄우는 경우에만 아래를 사용하세요.
-    # 지금 compose에 crawler를 안 올릴 거면 enabled: false 로 두는 게 안전합니다.
-    base-url: ${CRAWLER_BASE_URL:http://python-crawler:5001}
+    base-url: ${CRAWLER_BASE_URL:http://localhost:5001}
     work-dir: ${CRAWLER_WORK_DIR:/app}
     command: ${CRAWLER_COMMAND:.venv/bin/python}
-    health-url: ${CRAWLER_HEALTH_URL:http://python-crawler:5001/health}
+    health-url: ${CRAWLER_HEALTH_URL:http://localhost:5001/health}
 
 juso:
-  api-key: ${JUSO_API_KEY}
+  api-key: ${JUSO_API_KEY:devU01TX0FVVEgyMDI1MTExNDA1MDE1MzExNjQ0OTI=}
 
 toss:
-  secret-key: ${TOSS_SECRET_KEY}
+  secret-key: ${TOSS_SECRET_KEY:test_sk_test}
   base-url: ${TOSS_BASE_URL:https://api.tosspayments.com}
 
-# 님이 유지한다고 한 값: backend -> http://ai:7001
 ai:
-  base-url: ${AI_BASE_URL:http://ai:7001}
+  base-url: ${AI_BASE_URL:http://localhost:7001}
 
 quotation:
   # EC2 컨테이너 내부 경로 (호스트에 마운트하면 파일 남길 수 있음)
