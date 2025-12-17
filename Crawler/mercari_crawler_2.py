@@ -35,8 +35,15 @@ class MercariCrawler:
 
     def _setup_driver(self):
         """Selenium WebDriver 설정"""
+        import os
         chrome_options = Options()
-        chrome_options.binary_location = "/snap/bin/chromium"
+
+        # Docker 환경 감지 후 Chrome 경로 설정
+        if os.path.exists("/usr/bin/google-chrome"):
+            chrome_options.binary_location = "/usr/bin/google-chrome"
+        elif os.path.exists("/snap/bin/chromium"):
+            chrome_options.binary_location = "/snap/bin/chromium"
+
         if self.headless:
             chrome_options.add_argument("--headless=new")
         chrome_options.add_argument("--no-sandbox")
@@ -53,7 +60,8 @@ class MercariCrawler:
         chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
         chrome_options.add_experimental_option("useAutomationExtension", False)
 
-        service = Service("/tmp/chromedriver-linux64/chromedriver")
+        # ChromeDriver 자동 설치 사용
+        service = Service(ChromeDriverManager().install())
         self.driver = webdriver.Chrome(service=service, options=chrome_options)
 
     def crawl_raw(self, url: str) -> Optional[Dict]:
