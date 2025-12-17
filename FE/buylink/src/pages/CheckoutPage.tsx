@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { motion } from "motion/react";
 import sampleimg from "../assets/cuteeeee.png";
 import CartQuotation, { type CartEstimate } from "../components/CartQuotation";
@@ -110,6 +111,12 @@ type CartEstimateApiResponse = {
   error: string | null;
 };
 
+type CheckoutNavState = {
+  selectedIds?: number[];
+  extraPackaging?: boolean;
+  insurance?: boolean;
+};
+
 const formatKRW = (v?: number | null) => `${(v ?? 0).toLocaleString()}원`;
 
 function getErrorMessage(err: unknown): string {
@@ -122,6 +129,11 @@ function getErrorMessage(err: unknown): string {
 }
 
 export default function CheckoutPage() {
+  const location = useLocation();
+  const navState = (location.state as CheckoutNavState) ?? {};
+
+  const selectedIdsFromCart = navState.selectedIds ?? [];
+
   const [agree, setAgree] = useState(false);
 
   const [addressModalOpen, setAddressModalOpen] = useState(false);
@@ -135,11 +147,11 @@ export default function CheckoutPage() {
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
   const [isLoadingOrder, setIsLoadingOrder] = useState(false);
 
-  // Checkout에서도 옵션을 유지(지금은 true 고정이었으니 기본값 true)
-  const [extraPackaging] = useState(true);
-  const [insurance] = useState(true);
+  // ✅ Cart에서 선택한 옵션도 유지
+  const [extraPackaging] = useState(navState.extraPackaging ?? true);
+  const [insurance] = useState(navState.insurance ?? true);
 
-  // 주문(장바구니) 불러오기
+  // 주문(장바구니) 불러오기 + ✅ selectedIds로 필터링
   useEffect(() => {
     const fetchCart = async () => {
       setIsLoadingOrder(true);
@@ -169,7 +181,13 @@ export default function CheckoutPage() {
           imageUrl: item.imageUrl,
         }));
 
-        setOrderItems(mappedItems);
+        // ✅ CartPage에서 선택한 id만 결제 대상으로 유지
+        const filtered =
+          selectedIdsFromCart.length > 0
+            ? mappedItems.filter((it) => selectedIdsFromCart.includes(it.id))
+            : mappedItems;
+
+        setOrderItems(filtered);
       } catch (e: unknown) {
         console.error("[CheckoutPage] fetchCart error:", e);
         setOrderItems([]);
@@ -179,8 +197,9 @@ export default function CheckoutPage() {
     };
 
     fetchCart();
-  }, []);
+  }, [selectedIdsFromCart]);
 
+  // CartQuotation에 넘길 선택 아이템(= 결제 대상)
   const selectedItems = orderItems.map((it) => ({ id: it.id }));
 
   const maskCustomsCode = (code: string) => {
@@ -209,14 +228,14 @@ export default function CheckoutPage() {
       return;
     }
     if (selectedItems.length === 0) {
-      alert("결제할 상품이 없습니다. 장바구니에서 상품을 담아주세요.");
+      alert("결제할 상품이 없습니다. 장바구니에서 상품을 선택해 주세요.");
       return;
     }
 
     setIsPaying(true);
 
     try {
-      // 1) 결제 직전 최종 금액(견적) 다시 확보 (안전)
+      // 1) 결제 직전 최종 견적 다시 확보(안전)
       const estimateUrl = buildApiUrl("/api/cart/estimate");
       console.log("[CheckoutPage] POST /api/cart/estimate:", estimateUrl);
 
@@ -373,7 +392,7 @@ export default function CheckoutPage() {
               </div>
             ) : orderItems.length === 0 ? (
               <div className="border border-dashed border-[#e5e5ec] rounded-xl py-5 px-4 text-sm text-[#767676]">
-                결제할 상품이 없습니다. 장바구니에서 상품을 담아주세요.
+                결제할 상품이 없습니다. 장바구니에서 상품을 선택해 주세요.
               </div>
             ) : (
               <div className="space-y-4">
@@ -432,7 +451,9 @@ export default function CheckoutPage() {
               extraPackaging={extraPackaging}
               insurance={insurance}
               selectedItems={selectedItems}
-              onCheckout={() => void handlePay()}
+              onCheckout={() => {
+                void handlePay();
+              }}
             />
           )}
 
@@ -497,7 +518,9 @@ function AddressModal({
 
       const res = await fetch(url, { method: "GET", credentials: "include" });
 
-      if (!res.ok) throw new Error("주소 검색 실패");
+      if (!res.ok) {
+        throw new Error("주소 검색 실패");
+      }
 
       const json = (await res.json()) as AddressSearchApiResponse;
 
