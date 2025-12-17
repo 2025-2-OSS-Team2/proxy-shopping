@@ -7,10 +7,24 @@ import {
   validateCustomsCode,
 } from "../utils/validation";
 
+type TossPaymentRequestOptions = {
+  amount: number;
+  orderId: string;
+  orderName: string;
+  customerName: string;
+  successUrl: string;
+  failUrl: string;
+  // Toss 측에서 추가 필드를 요구할 수 있으므로 확장 가능하게 둠
+  [key: string]: unknown;
+};
+
 declare global {
   interface Window {
     TossPayments?: (clientKey: string) => {
-      requestPayment: (method: string, options: any) => Promise<void>;
+      requestPayment: (
+        method: string,
+        options: TossPaymentRequestOptions
+      ) => Promise<void>;
     };
   }
 }
@@ -49,7 +63,6 @@ type SavedAddress = {
 
 type CustomsInfo = {
   code: string;
-  //name: string;
 };
 
 type AddressSearchApiResponse = {
@@ -121,6 +134,15 @@ type CartEstimateApiResponse = {
 
 const formatKRW = (v?: number | null) => `${(v ?? 0).toLocaleString()}원`;
 
+function getErrorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  if (typeof err === "object" && err && "message" in err) {
+    const m = (err as { message?: unknown }).message;
+    if (typeof m === "string") return m;
+  }
+  return "";
+}
+
 export default function CheckoutPage() {
   const [agree, setAgree] = useState(false);
 
@@ -180,7 +202,7 @@ export default function CheckoutPage() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            itemIds, // 장바구니에서 가져온 id 배열
+            itemIds,
             extraPackaging: true,
             insurance: true,
           }),
@@ -193,17 +215,14 @@ export default function CheckoutPage() {
 
         const estimateJson =
           (await estimateRes.json()) as CartEstimateApiResponse;
-        console.log(
-          "[CheckoutPage] /api/cart/estimate response:",
-          estimateJson
-        );
+        console.log("[CheckoutPage] /api/cart/estimate response:", estimateJson);
 
         if (!estimateJson.success || !estimateJson.data) {
           throw new Error(estimateJson.error ?? "견적 계산 실패");
         }
 
         setEstimate(estimateJson.data);
-      } catch (e) {
+      } catch (e: unknown) {
         console.error("[CheckoutPage] fetchOrderAndEstimate error:", e);
         setOrderItems([]);
         setEstimate(null);
@@ -233,7 +252,9 @@ export default function CheckoutPage() {
   const maskCustomsCode = (code: string) => {
     if (code.length <= 5) return code;
     return (
-      code.slice(0, 5) + "*".repeat(Math.max(0, code.length - 7)) + code.slice(-2)
+      code.slice(0, 5) +
+      "*".repeat(Math.max(0, code.length - 7)) +
+      code.slice(-2)
     );
   };
 
@@ -277,10 +298,10 @@ export default function CheckoutPage() {
         successUrl: `${window.location.origin}/payments/success`,
         failUrl: `${window.location.origin}/payments/fail`,
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error(error);
       alert(
-        `결제창을 닫았거나 오류가 발생했습니다.\n${error?.message ?? ""}`
+        `결제창을 닫았거나 오류가 발생했습니다.\n${getErrorMessage(error)}`
       );
     } finally {
       setIsPaying(false);
@@ -549,9 +570,7 @@ export default function CheckoutPage() {
             disabled={isPaying || isLoadingOrder}
             className="w-full py-4 rounded-xl bg-gradient-to-r from-[#ffe788] to-[#ffcc4c] text-[#111111] font-semibold shadow-lg hover:shadow-xl transition-all disabled:opacity-60"
           >
-            {isPaying
-              ? "결제 처리 중..."
-              : `${formatKRW(totalAmount)} 결제하기`}
+            {isPaying ? "결제 처리 중..." : `${formatKRW(totalAmount)} 결제하기`}
           </button>
         </aside>
       </div>
@@ -620,7 +639,7 @@ function AddressModal({
       } else {
         alert(json.error ?? "주소 검색에 실패했습니다.");
       }
-    } catch (e) {
+    } catch (e: unknown) {
       console.error(e);
       alert("주소 검색 중 문제가 발생했습니다.");
     }
@@ -678,14 +697,11 @@ function AddressModal({
           "buylink_receiverName",
           json.data.receiverName
         );
-        window.localStorage.setItem(
-          "buylink_receiverPhone",
-          json.data.phone
-        );
+        window.localStorage.setItem("buylink_receiverPhone", json.data.phone);
       } else {
         alert(json.error ?? "배송지 등록에 실패했습니다.");
       }
-    } catch (e) {
+    } catch (e: unknown) {
       console.error(e);
       alert("배송지 등록 중 문제가 발생했습니다.");
     }
@@ -771,10 +787,7 @@ function AddressModal({
         />
 
         <div className="flex justify-end gap-2 mt-4">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 rounded-lg border text-sm"
-          >
+          <button onClick={onClose} className="px-4 py-2 rounded-lg border text-sm">
             닫기
           </button>
 
@@ -813,10 +826,7 @@ function CustomsCodeModal({
     setLoading(true);
     try {
       const url = buildApiUrl("/api/orders/customs-code/verify");
-      console.log(
-        "[CustomsCodeModal] POST /api/orders/customs-code/verify:",
-        url
-      );
+      console.log("[CustomsCodeModal] POST /api/orders/customs-code/verify:", url);
 
       const res = await fetch(url, {
         method: "POST",
@@ -832,12 +842,12 @@ function CustomsCodeModal({
       const json = (await res.json()) as CustomsVerifyResponse;
 
       if (json.isValid) {
-        onVerified({ code: trimmed});
+        onVerified({ code: trimmed });
         window.localStorage.setItem("buylink_customsCode", trimmed);
       } else {
         alert("올바르지 않은 번호입니다. 다시 확인해주세요.");
       }
-    } catch (e) {
+    } catch (e: unknown) {
       console.error(e);
       alert("조회 중 문제가 발생했습니다. 잠시 후 다시 시도해주세요.");
     } finally {
