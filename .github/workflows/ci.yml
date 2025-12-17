@@ -7,8 +7,11 @@ on:
     branches: ["main", "develop"]
 
 jobs:
-  ci:
+  fe-ci:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: FE/buylink
 
     steps:
       - name: Checkout
@@ -19,6 +22,7 @@ jobs:
         with:
           node-version: 20
           cache: npm
+          cache-dependency-path: FE/buylink/package-lock.json
 
       - name: Install
         run: npm ci
@@ -26,6 +30,5 @@ jobs:
       - name: Lint
         run: npm run lint
 
-      # build = tsc -b && vite build  (타입체크 포함)
       - name: Build
         run: npm run build
